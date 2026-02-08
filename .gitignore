@@ -1,0 +1,23 @@
+# Python internals
+__pycache__/
+*.pyc
+
+# Testing caches
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Distribution
+build/
+dist/
+*.egg-info/
+
+# Environments
+venv/
+env/
+.env
+
+# IDEs & System
+.vscode/
+.idea/
+.DS_Store
