@@ -1,0 +1,42 @@
+# LJ Argon Simulation Configuration
+# Simulates liquid argon using Lennard-Jones potential in reduced units
+
+units: LJ
+
+system:
+  element: Ar
+  mass: 1.0
+  lattice:
+    type: fcc
+    nx: 4
+    ny: 4
+    nz: 4
+    a: 1.5  # Reduced units (sigma)
+  temperature: 0.8  # Reduced temperature (T* = kT/epsilon)
+
+boundary:
+  type: periodic
+
+potential:
+  type: lj
+  epsilon: 1.0
+  sigma: 1.0
+  cutoff: 2.5
+
+integrator:
+  dt: 0.005  # Reduced time units
+
+thermostat:
+  type: berendsen
+  temperature: 0.8
+  tau: 0.5
+
+observers:
+  energy: true
+  energy_interval: 100
+  print: true
+  print_interval: 500
+  trajectory: false
+
+run:
+  steps: 5000
