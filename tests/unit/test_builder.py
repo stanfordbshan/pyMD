@@ -4,8 +4,8 @@ Unit tests for builder module.
 import numpy as np
 import pytest
 
-from md_simulator.builder import SystemBuilder
-from md_simulator.core import System, Units
+from pyMD.builder import SystemBuilder
+from pyMD.core import System, Units
 
 
 class TestSystemBuilder:

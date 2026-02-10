@@ -25,13 +25,13 @@ python -m pytest tests/unit/ -q
 python -m pytest tests/unit/test_potential.py -v
 
 # Run with coverage
-python -m pytest tests/unit/ --cov=md_simulator
+python -m pytest tests/unit/ --cov=pyMD
 
 # Run an example
 python examples/quick_test.py
 ```
 
-No linter or formatter is configured. No `pyproject.toml` or `setup.py` exists — the package is imported directly from the `md_simulator/` directory.
+No linter or formatter is configured. No `pyproject.toml` or `setup.py` exists — the package is imported directly from the `pyMD/` directory.
 
 ## Architecture
 
@@ -74,13 +74,13 @@ To add a new integrator/thermostat/boundary condition: subclass the correspondin
 
 ### Key Files
 
-- `md_simulator/simulator/simulator.py` — main simulation loop
-- `md_simulator/force/force_calculator.py` — force computation via autodiff
-- `md_simulator/force/autodiff_backend.py` — all autodiff backend implementations
-- `md_simulator/builder/system_builder.py` — fluent system construction API
-- `md_simulator/builder/config_loader.py` — YAML configuration loading
-- `md_simulator/minimizer/minimizer.py` — Minimizer ABC + MinimizationResult
-- `md_simulator/core/system.py` — central System container
+- `pyMD/simulator/simulator.py` — main simulation loop
+- `pyMD/force/force_calculator.py` — force computation via autodiff
+- `pyMD/force/autodiff_backend.py` — all autodiff backend implementations
+- `pyMD/builder/system_builder.py` — fluent system construction API
+- `pyMD/builder/config_loader.py` — YAML configuration loading
+- `pyMD/minimizer/minimizer.py` — Minimizer ABC + MinimizationResult
+- `pyMD/core/system.py` — central System container
 - `MD_SIMULATOR_DESIGN.md` — comprehensive design document
 - `docs/开发者指南.md` — developer guide with extension examples (Chinese)
 - `examples/lj_argon.yaml` — reference YAML configuration
