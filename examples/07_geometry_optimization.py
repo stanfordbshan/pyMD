@@ -22,11 +22,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import numpy as np
-from md_simulator.core import Atom, State, System, Units
-from md_simulator.boundary import OpenBoundaryCondition
-from md_simulator.force import ForceCalculator, NumericalBackend
-from md_simulator.potential import LennardJonesPotential
-from md_simulator.minimizer import SteepestDescent, ConjugateGradient, LBFGS
+from pyMD.core import Atom, State, System, Units
+from pyMD.boundary import OpenBoundaryCondition
+from pyMD.force import ForceCalculator, NumericalBackend
+from pyMD.potential import LennardJonesPotential
+from pyMD.minimizer import SteepestDescent, ConjugateGradient, LBFGS
 
 
 def compute_lj_energy_manual(positions, epsilon, sigma):
