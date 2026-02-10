@@ -18,7 +18,7 @@ Or manually: `pip install numpy pyyaml pytest` (Python >= 3.10 required).
 ## Commands
 
 ```bash
-# Run all unit tests (148 tests)
+# Run all unit tests (192 tests)
 python -m pytest tests/unit/ -q
 
 # Run a specific test file
@@ -52,6 +52,7 @@ Simulator.run(num_steps) → loop: forces → integrate → thermostat → obser
 - **`boundary/`** — `PeriodicBoundaryCondition`, `OpenBoundaryCondition`, `MixedBoundaryCondition`
 - **`neighbor/`** — `BruteForceNeighborList`, `VerletList`, `CellList`
 - **`integrator/`** — `VelocityVerlet`
+- **`minimizer/`** — ABC `Minimizer` (template method) + `MinimizationResult`. Implementations: `SteepestDescent`, `ConjugateGradient` (Polak-Ribiere), `LBFGS` (two-loop recursion)
 - **`thermostat/`** — `NoThermostat` (NVE), `BerendsenThermostat`, `NoseHooverThermostat`
 - **`observer/`** — `EnergyObserver`, `PrintObserver`, `CompositeObserver`
 - **`builder/`** — `SystemBuilder` (fluent API), `ConfigLoader` (YAML-based simulation setup)
@@ -67,6 +68,8 @@ Other patterns: **Builder** (`SystemBuilder`), **Observer** (simulation monitori
 
 To add a new potential: subclass `PotentialEnergy`, implement `compute_energy(positions, box, atom_types) -> float` and `get_name() -> str`. Forces are derived automatically — never implement force computation manually.
 
+To add a new minimizer: subclass `Minimizer`, implement `_step(system, force_calculator, forces, energy) -> (new_forces, new_energy)` and `get_name() -> str`. Optionally override `_initialize()` for setup. The `minimize()` template method handles the convergence loop.
+
 To add a new integrator/thermostat/boundary condition: subclass the corresponding ABC and implement its abstract methods. See `docs/开发者指南.md` for full examples.
 
 ### Key Files
@@ -76,6 +79,7 @@ To add a new integrator/thermostat/boundary condition: subclass the correspondin
 - `md_simulator/force/autodiff_backend.py` — all autodiff backend implementations
 - `md_simulator/builder/system_builder.py` — fluent system construction API
 - `md_simulator/builder/config_loader.py` — YAML configuration loading
+- `md_simulator/minimizer/minimizer.py` — Minimizer ABC + MinimizationResult
 - `md_simulator/core/system.py` — central System container
 - `MD_SIMULATOR_DESIGN.md` — comprehensive design document
 - `docs/开发者指南.md` — developer guide with extension examples (Chinese)
