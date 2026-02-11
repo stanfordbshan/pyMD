@@ -17,6 +17,7 @@ test = ["pytest"]
 jax = ["jax", "jaxlib"]
 torch = ["torch"]
 autograd = ["autograd"]
+gui = ["pywebview"]
 
 [tool.setuptools.packages.find]
 include = ["pyMD*"]

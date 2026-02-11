@@ -1,0 +1,477 @@
+/* ============================================================
+   pyMD Desktop App Styles
+   ============================================================ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --bg-primary: #1e1e2e;
+  --bg-secondary: #2a2a3d;
+  --bg-surface: #313145;
+  --bg-input: #3a3a50;
+  --text-primary: #e0e0f0;
+  --text-secondary: #a0a0c0;
+  --accent: #6c8cff;
+  --accent-hover: #8aa4ff;
+  --danger: #ff6b6b;
+  --danger-hover: #ff8787;
+  --success: #51cf66;
+  --warning: #ffd43b;
+  --border: #404060;
+  --radius: 6px;
+  --sidebar-width: 200px;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow: hidden;
+  height: 100vh;
+}
+
+/* ---- Layout ---- */
+.app {
+  display: flex;
+  height: 100vh;
+}
+
+/* ---- Sidebar ---- */
+.sidebar {
+  width: var(--sidebar-width);
+  background: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.sidebar-header {
+  padding: 20px 16px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-header h1 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 1px;
+}
+
+.sidebar-header .subtitle {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+}
+
+.nav-tabs {
+  list-style: none;
+  padding: 8px 0;
+  flex: 1;
+}
+
+.nav-item {
+  padding: 10px 16px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.15s;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-item:hover {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.nav-item.active {
+  background: var(--bg-surface);
+  color: var(--accent);
+  border-left: 3px solid var(--accent);
+  font-weight: 600;
+}
+
+.nav-icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+}
+
+.sidebar-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
+
+#status-bar {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+.status-idle { background: var(--bg-surface); color: var(--text-secondary); }
+.status-running { background: #2a3d2a; color: var(--success); }
+.status-error { background: #3d2a2a; color: var(--danger); }
+
+/* ---- Main Content ---- */
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 32px;
+}
+
+.tab-panel {
+  display: none;
+}
+
+.tab-panel.active {
+  display: block;
+}
+
+.tab-panel h2 {
+  font-size: 20px;
+  margin-bottom: 16px;
+  color: var(--text-primary);
+}
+
+/* ---- Buttons ---- */
+.btn {
+  padding: 8px 18px;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+
+.btn-secondary {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.btn-secondary:hover:not(:disabled) { background: var(--bg-input); }
+
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+.btn-danger:hover:not(:disabled) { background: var(--danger-hover); }
+
+/* ---- Forms ---- */
+.setup-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.file-path {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.form-section {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+
+.form-section legend {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--accent);
+  padding: 0 6px;
+}
+
+.form-section label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.form-section input[type="text"],
+.form-section input[type="number"],
+.form-section select {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  padding: 5px 8px;
+  font-size: 13px;
+  max-width: 160px;
+}
+
+.form-section input:focus,
+.form-section select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.param-subgrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
+}
+
+/* ---- Summary Box ---- */
+.summary-box {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.summary-box h3 {
+  font-size: 15px;
+  margin-bottom: 10px;
+  color: var(--accent);
+}
+
+.summary-box table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.summary-box td {
+  padding: 4px 8px;
+  font-size: 13px;
+}
+
+.summary-box td:first-child {
+  color: var(--text-secondary);
+  width: 140px;
+}
+
+.info-text {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+/* ---- 3D Viewer ---- */
+.viewer-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+#viewer-container {
+  background: #fff;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+#mol-viewer {
+  width: 100%;
+  height: 500px;
+  position: relative;
+}
+
+/* ---- Simulation Controls ---- */
+.sim-controls, .min-controls {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.sim-controls label, .min-controls label {
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+  color: var(--text-secondary);
+  gap: 4px;
+}
+
+.sim-controls input, .sim-controls select,
+.min-controls input, .min-controls select {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  padding: 6px 10px;
+  font-size: 13px;
+  width: 120px;
+}
+
+.sim-controls input:focus, .min-controls input:focus,
+.sim-controls select:focus, .min-controls select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* ---- Progress Bar ---- */
+.progress-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.progress-bar {
+  flex: 1;
+  height: 8px;
+  background: var(--bg-input);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s;
+  border-radius: 4px;
+}
+
+#sim-progress-text {
+  font-size: 12px;
+  color: var(--text-secondary);
+  min-width: 80px;
+  text-align: right;
+}
+
+/* ---- Readout Grid ---- */
+.readout-grid {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.readout-item {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  min-width: 120px;
+  text-align: center;
+}
+
+.readout-label {
+  display: block;
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.readout-value {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Chart Container ---- */
+.chart-container {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-top: 12px;
+}
+
+.chart-container h3 {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+.chart-container canvas {
+  width: 100% !important;
+  max-width: 100%;
+  height: auto !important;
+  background: var(--bg-primary);
+  border-radius: 4px;
+}
+
+/* ---- Minimization Results ---- */
+#min-results-content table {
+  width: 100%;
+}
+
+.converged-yes { color: var(--success); font-weight: 600; }
+.converged-no { color: var(--danger); font-weight: 600; }
+
+/* ---- Results Tab ---- */
+#results-content {
+  min-height: 200px;
+}
+
+#results-content table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#results-content td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+#results-content td:first-child {
+  color: var(--text-secondary);
+  width: 180px;
+}
+
+/* ---- Scrollbar ---- */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-surface);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border);
+}
