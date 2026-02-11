@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>pyMD - Molecular Dynamics Simulator</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="3Dmol-min.js"></script>
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar">
+      <div class="sidebar-header">
+        <h1>pyMD</h1>
+        <span class="subtitle">MD Simulator</span>
+      </div>
+      <ul class="nav-tabs">
+        <li class="nav-item active" data-tab="setup">
+          <span class="nav-icon">&#9881;</span> Setup
+        </li>
+        <li class="nav-item" data-tab="visualization">
+          <span class="nav-icon">&#9883;</span> Visualization
+        </li>
+        <li class="nav-item" data-tab="simulation">
+          <span class="nav-icon">&#9654;</span> Simulation
+        </li>
+        <li class="nav-item" data-tab="minimization">
+          <span class="nav-icon">&#8615;</span> Minimization
+        </li>
+        <li class="nav-item" data-tab="results">
+          <span class="nav-icon">&#9776;</span> Results
+        </li>
+      </ul>
+      <div class="sidebar-footer">
+        <div id="status-bar" class="status-idle">Ready</div>
+      </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="content">
+
+      <!-- ==================== SETUP TAB ==================== -->
+      <section id="tab-setup" class="tab-panel active">
+        <h2>System Setup</h2>
+        <div class="setup-actions">
+          <button id="btn-load-yaml" class="btn btn-secondary">Load YAML</button>
+          <button id="btn-build-system" class="btn btn-primary">Build System</button>
+          <span id="yaml-path" class="file-path"></span>
+        </div>
+
+        <div class="form-grid">
+          <!-- Units -->
+          <fieldset class="form-section">
+            <legend>Units</legend>
+            <label>Unit System
+              <select id="cfg-units">
+                <option value="LJ" selected>LJ (Reduced)</option>
+                <option value="REAL">REAL (kcal/mol)</option>
+                <option value="METAL">METAL (eV)</option>
+                <option value="SI">SI</option>
+              </select>
+            </label>
+          </fieldset>
+
+          <!-- System -->
+          <fieldset class="form-section">
+            <legend>System</legend>
+            <label>Element <input type="text" id="cfg-element" value="Ar"></label>
+            <label>Mass <input type="number" id="cfg-mass" value="1.0" step="0.1"></label>
+            <label>Lattice Type
+              <select id="cfg-lattice-type">
+                <option value="fcc" selected>FCC</option>
+                <option value="bcc">BCC</option>
+                <option value="sc">SC</option>
+                <option value="random">Random</option>
+              </select>
+            </label>
+            <div id="lattice-params-grid" class="param-subgrid">
+              <label>nx <input type="number" id="cfg-nx" value="4" min="1"></label>
+              <label>ny <input type="number" id="cfg-ny" value="4" min="1"></label>
+              <label>nz <input type="number" id="cfg-nz" value="4" min="1"></label>
+              <label>a (spacing) <input type="number" id="cfg-a" value="1.5" step="0.1"></label>
+            </div>
+            <div id="random-params-grid" class="param-subgrid" style="display:none;">
+              <label>n_atoms <input type="number" id="cfg-n-atoms" value="100" min="1"></label>
+              <label>box lx <input type="number" id="cfg-lx" value="10.0" step="0.5"></label>
+              <label>box ly <input type="number" id="cfg-ly" value="10.0" step="0.5"></label>
+              <label>box lz <input type="number" id="cfg-lz" value="10.0" step="0.5"></label>
+            </div>
+            <label>Temperature <input type="number" id="cfg-temperature" value="0.8" step="0.1"></label>
+          </fieldset>
+
+          <!-- Boundary -->
+          <fieldset class="form-section">
+            <legend>Boundary</legend>
+            <label>Type
+              <select id="cfg-boundary">
+                <option value="periodic" selected>Periodic</option>
+                <option value="open">Open</option>
+                <option value="mixed">Mixed</option>
+              </select>
+            </label>
+            <div id="mixed-dims" style="display:none;">
+              <label><input type="checkbox" id="cfg-px" checked> Periodic X</label>
+              <label><input type="checkbox" id="cfg-py" checked> Periodic Y</label>
+              <label><input type="checkbox" id="cfg-pz"> Periodic Z</label>
+            </div>
+          </fieldset>
+
+          <!-- Potential -->
+          <fieldset class="form-section">
+            <legend>Potential</legend>
+            <label>Type
+              <select id="cfg-potential-type">
+                <option value="lj" selected>Lennard-Jones</option>
+                <option value="morse">Morse</option>
+              </select>
+            </label>
+            <div id="lj-params">
+              <label>epsilon <input type="number" id="cfg-epsilon" value="1.0" step="0.1"></label>
+              <label>sigma <input type="number" id="cfg-sigma" value="1.0" step="0.1"></label>
+              <label>cutoff <input type="number" id="cfg-cutoff" value="2.5" step="0.1"></label>
+            </div>
+            <div id="morse-params" style="display:none;">
+              <label>D <input type="number" id="cfg-morse-D" value="1.0" step="0.1"></label>
+              <label>a <input type="number" id="cfg-morse-a" value="1.0" step="0.1"></label>
+              <label>r0 <input type="number" id="cfg-morse-r0" value="1.0" step="0.1"></label>
+              <label>cutoff <input type="number" id="cfg-morse-cutoff" value="5.0" step="0.1"></label>
+            </div>
+          </fieldset>
+
+          <!-- Integrator -->
+          <fieldset class="form-section">
+            <legend>Integrator</legend>
+            <label>dt (timestep) <input type="number" id="cfg-dt" value="0.005" step="0.001"></label>
+          </fieldset>
+
+          <!-- Thermostat -->
+          <fieldset class="form-section">
+            <legend>Thermostat</legend>
+            <label>Type
+              <select id="cfg-thermostat-type">
+                <option value="nve" selected>NVE (No thermostat)</option>
+                <option value="berendsen">Berendsen</option>
+                <option value="nose_hoover">Nose-Hoover</option>
+              </select>
+            </label>
+            <div id="thermostat-params" style="display:none;">
+              <label>Target Temperature <input type="number" id="cfg-thermo-temp" value="0.8" step="0.1"></label>
+              <label>tau (coupling) <input type="number" id="cfg-thermo-tau" value="0.5" step="0.1"></label>
+            </div>
+          </fieldset>
+
+          <!-- Observers -->
+          <fieldset class="form-section">
+            <legend>Observers</legend>
+            <label>Energy Interval <input type="number" id="cfg-energy-interval" value="100" min="1"></label>
+          </fieldset>
+        </div>
+
+        <!-- Build Summary -->
+        <div id="build-summary" class="summary-box" style="display:none;">
+          <h3>System Summary</h3>
+          <div id="summary-content"></div>
+        </div>
+      </section>
+
+      <!-- ==================== VISUALIZATION TAB ==================== -->
+      <section id="tab-visualization" class="tab-panel">
+        <h2>3D Visualization</h2>
+        <div class="viewer-controls">
+          <button id="btn-reset-view" class="btn btn-secondary">Reset View</button>
+          <span id="viewer-info" class="info-text">Build a system to see atoms</span>
+        </div>
+        <div id="viewer-container">
+          <div id="mol-viewer"></div>
+        </div>
+      </section>
+
+      <!-- ==================== SIMULATION TAB ==================== -->
+      <section id="tab-simulation" class="tab-panel">
+        <h2>Simulation</h2>
+        <div class="sim-controls">
+          <label>Steps <input type="number" id="sim-steps" value="2000" min="1"></label>
+          <label>Viz Interval <input type="number" id="sim-viz-interval" value="50" min="1"></label>
+          <button id="btn-start-sim" class="btn btn-primary">Start</button>
+          <button id="btn-stop-sim" class="btn btn-danger" disabled>Stop</button>
+        </div>
+
+        <!-- Progress -->
+        <div class="progress-container">
+          <div class="progress-bar">
+            <div id="sim-progress" class="progress-fill" style="width:0%"></div>
+          </div>
+          <span id="sim-progress-text">0 / 0</span>
+        </div>
+
+        <!-- Live Readout -->
+        <div class="readout-grid" id="sim-readout">
+          <div class="readout-item"><span class="readout-label">Step</span><span id="ro-step" class="readout-value">-</span></div>
+          <div class="readout-item"><span class="readout-label">Temperature</span><span id="ro-temp" class="readout-value">-</span></div>
+          <div class="readout-item"><span class="readout-label">PE</span><span id="ro-pe" class="readout-value">-</span></div>
+          <div class="readout-item"><span class="readout-label">KE</span><span id="ro-ke" class="readout-value">-</span></div>
+          <div class="readout-item"><span class="readout-label">Total E</span><span id="ro-total" class="readout-value">-</span></div>
+        </div>
+
+        <!-- Energy Chart -->
+        <div class="chart-container">
+          <h3>Energy vs Step</h3>
+          <canvas id="sim-chart" width="700" height="300"></canvas>
+        </div>
+      </section>
+
+      <!-- ==================== MINIMIZATION TAB ==================== -->
+      <section id="tab-minimization" class="tab-panel">
+        <h2>Energy Minimization</h2>
+        <div class="min-controls">
+          <label>Algorithm
+            <select id="min-algorithm">
+              <option value="steepest_descent">Steepest Descent</option>
+              <option value="conjugate_gradient">Conjugate Gradient</option>
+              <option value="lbfgs" selected>L-BFGS</option>
+            </select>
+          </label>
+          <label>Force Tolerance <input type="number" id="min-force-tol" value="1e-4" step="1e-5"></label>
+          <label>Energy Tolerance <input type="number" id="min-energy-tol" value="1e-8" step="1e-9"></label>
+          <label>Max Steps <input type="number" id="min-max-steps" value="10000" min="1"></label>
+          <button id="btn-minimize" class="btn btn-primary">Minimize</button>
+        </div>
+
+        <!-- Minimization Results -->
+        <div id="min-results" class="summary-box" style="display:none;">
+          <h3>Minimization Results</h3>
+          <div id="min-results-content"></div>
+        </div>
+
+        <!-- Energy History Chart -->
+        <div class="chart-container">
+          <h3>Energy History</h3>
+          <canvas id="min-chart" width="700" height="300"></canvas>
+        </div>
+      </section>
+
+      <!-- ==================== RESULTS TAB ==================== -->
+      <section id="tab-results" class="tab-panel">
+        <h2>Results Summary</h2>
+        <div id="results-content" class="summary-box">
+          <p class="info-text">Run a simulation or minimization to see results here.</p>
+        </div>
+        <button id="btn-copy-data" class="btn btn-secondary" style="margin-top:12px;">Copy Energy Data to Clipboard</button>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
