@@ -31,16 +31,20 @@ class SimulatorAPI:
     """Exposed to JS via pywebview js_api. Wraps pyMD."""
 
     def __init__(self):
-        self.window = None
-        self.system = None
-        self.force_calc = None
-        self.simulator = None
-        self.integrator = None
-        self.thermostat = None
-        self.energy_observer = None
-        self.running = False
+        self._window = None
+        self._system = None
+        self._force_calc = None
+        self._simulator = None
+        self._integrator = None
+        self._thermostat = None
+        self._energy_observer = None
+        self._running = False
         self._sim_thread = None
         self._config = None
+
+    def set_window(self, window):
+        """Called by main.py to provide the pywebview window reference."""
+        self._window = window
 
     # ------------------------------------------------------------------ #
     #  Setup
@@ -49,7 +53,7 @@ class SimulatorAPI:
     def load_yaml(self):
         """Open native file dialog, parse YAML, return config dict to JS."""
         try:
-            result = self.window.create_file_dialog(
+            result = self._window.create_file_dialog(
                 dialog_type=20,  # OPEN_DIALOG
                 file_types=("YAML Files (*.yaml;*.yml)",),
             )
@@ -124,29 +128,29 @@ class SimulatorAPI:
             if "temperature" in sys_config:
                 builder.temperature(float(sys_config["temperature"]))
 
-            self.system = builder.build()
+            self._system = builder.build()
 
             # Parse potential + force calculator
             potential = _parse_potential(config)
             backend_name = config.get("backend", "numerical")
             backend = BackendFactory.create(backend_name)
-            self.force_calc = ForceCalculator(potential=potential, backend=backend)
+            self._force_calc = ForceCalculator(potential=potential, backend=backend)
 
             # Parse integrator
             int_config = config.get("integrator", {})
             dt = float(int_config.get("dt", 0.005))
-            self.integrator = VelocityVerlet(dt=dt)
+            self._integrator = VelocityVerlet(dt=dt)
 
             # Parse thermostat
-            self.thermostat = _parse_thermostat(config, dt)
+            self._thermostat = _parse_thermostat(config, dt)
 
             # Store config for later use
             self._config = config
 
             # Build summary
-            box = self.system.state.box
+            box = self._system.state.box
             summary = {
-                "n_atoms": self.system.get_num_atoms(),
+                "n_atoms": self._system.get_num_atoms(),
                 "element": sys_config.get("element", "X"),
                 "box": [float(box[0]), float(box[1]), float(box[2])],
                 "units": config.get("units", "LJ"),
@@ -165,7 +169,7 @@ class SimulatorAPI:
 
     def get_xyz(self):
         """Generate XYZ-format string from current system positions."""
-        if self.system is None:
+        if self._system is None:
             return json.dumps({"error": "No system built"})
         try:
             xyz = self._system_to_xyz()
@@ -179,36 +183,36 @@ class SimulatorAPI:
 
     def start_simulation(self, num_steps, viz_interval=50):
         """Spawn daemon thread to run simulation step by step."""
-        if self.system is None:
+        if self._system is None:
             return json.dumps({"error": "No system built. Use Setup tab first."})
-        if self.running:
+        if self._running:
             return json.dumps({"error": "Simulation already running."})
 
         num_steps = int(num_steps)
         viz_interval = int(viz_interval)
-        self.running = True
+        self._running = True
 
         # Create energy observer
-        self.energy_observer = EnergyObserver(interval=1)
+        self._energy_observer = EnergyObserver(interval=1)
 
         # Create simulator
-        self.simulator = Simulator(
-            system=self.system,
-            integrator=self.integrator,
-            force_calculator=self.force_calc,
-            thermostat=self.thermostat,
-            observers=[self.energy_observer],
+        self._simulator = Simulator(
+            system=self._system,
+            integrator=self._integrator,
+            force_calculator=self._force_calc,
+            thermostat=self._thermostat,
+            observers=[self._energy_observer],
         )
-        self.simulator.initialize()
+        self._simulator.initialize()
 
         def run_loop():
             try:
                 for i in range(num_steps):
-                    if not self.running:
+                    if not self._running:
                         break
 
                     # Run one step
-                    self.simulator.run(1)
+                    self._simulator.run(1)
 
                     # Push updates at viz_interval
                     if (i + 1) % viz_interval == 0 or i == num_steps - 1:
@@ -218,7 +222,7 @@ class SimulatorAPI:
                 traceback.print_exc()
                 self._eval_js(f"onSimulationError({json.dumps(str(e))})")
             finally:
-                self.running = False
+                self._running = False
                 self._eval_js("onSimulationDone()")
 
         self._sim_thread = threading.Thread(target=run_loop, daemon=True)
@@ -227,20 +231,20 @@ class SimulatorAPI:
 
     def stop_simulation(self):
         """Set running flag to False to stop simulation loop."""
-        self.running = False
+        self._running = False
         return json.dumps({"ok": True})
 
     def get_energy_data(self):
         """Return EnergyObserver data as dict of lists."""
-        if self.energy_observer is None:
+        if self._energy_observer is None:
             return json.dumps({"error": "No energy data available"})
         try:
             data = {
-                "steps": list(self.energy_observer.steps),
-                "pe": [float(x) for x in self.energy_observer.potential_energies],
-                "ke": [float(x) for x in self.energy_observer.kinetic_energies],
-                "total": [float(x) for x in self.energy_observer.total_energies],
-                "temperature": [float(x) for x in self.energy_observer.temperatures],
+                "steps": list(self._energy_observer.steps),
+                "pe": [float(x) for x in self._energy_observer.potential_energies],
+                "ke": [float(x) for x in self._energy_observer.kinetic_energies],
+                "total": [float(x) for x in self._energy_observer.total_energies],
+                "temperature": [float(x) for x in self._energy_observer.temperatures],
             }
             return json.dumps({"ok": True, "data": data})
         except Exception as e:
@@ -248,10 +252,10 @@ class SimulatorAPI:
 
     def _push_sim_update(self, current_step, total_steps):
         """Push simulation progress to JS via evaluate_js."""
-        if self.energy_observer is None:
+        if self._energy_observer is None:
             return
 
-        obs = self.energy_observer
+        obs = self._energy_observer
         latest = {
             "step": current_step,
             "total": total_steps,
@@ -269,13 +273,13 @@ class SimulatorAPI:
 
     def run_minimization(self, algorithm, params_json):
         """Run energy minimization in daemon thread."""
-        if self.system is None:
+        if self._system is None:
             return json.dumps({"error": "No system built. Use Setup tab first."})
-        if self.running:
+        if self._running:
             return json.dumps({"error": "A task is already running."})
 
         params = json.loads(params_json) if isinstance(params_json, str) else params_json
-        self.running = True
+        self._running = True
 
         def minimize_thread():
             try:
@@ -300,7 +304,7 @@ class SimulatorAPI:
                     self._eval_js(f"onMinimizationError({json.dumps(f'Unknown algorithm: {algorithm}')})")
                     return
 
-                result = minimizer.minimize(self.system, self.force_calc)
+                result = minimizer.minimize(self._system, self._force_calc)
 
                 result_dict = {
                     "converged": result.converged,
@@ -319,7 +323,7 @@ class SimulatorAPI:
                 traceback.print_exc()
                 self._eval_js(f"onMinimizationError({json.dumps(str(e))})")
             finally:
-                self.running = False
+                self._running = False
 
         self._sim_thread = threading.Thread(target=minimize_thread, daemon=True)
         self._sim_thread.start()
@@ -331,19 +335,19 @@ class SimulatorAPI:
 
     def _system_to_xyz(self):
         """Convert system positions + atom types to XYZ string."""
-        positions = self.system.state.positions
+        positions = self._system.state.positions
         n = len(positions)
-        step = self.system.state.step
+        step = self._system.state.step
         lines = [str(n), f"Step {step}"]
         for i, pos in enumerate(positions):
-            atom_type = self.system.atoms[i].atom_type
+            atom_type = self._system.atoms[i].atom_type
             lines.append(f"{atom_type}  {pos[0]:.6f}  {pos[1]:.6f}  {pos[2]:.6f}")
         return "\n".join(lines)
 
     def _eval_js(self, js_code):
         """Safely call window.evaluate_js from any thread."""
         try:
-            if self.window:
-                self.window.evaluate_js(js_code)
+            if self._window:
+                self._window.evaluate_js(js_code)
         except Exception:
             pass
