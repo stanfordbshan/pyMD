@@ -53,9 +53,10 @@ class SimulatorAPI:
     def load_yaml(self):
         """Open native file dialog, parse YAML, return config dict to JS."""
         try:
+            import webview
             result = self._window.create_file_dialog(
-                dialog_type=20,  # OPEN_DIALOG
-                file_types=("YAML Files (*.yaml;*.yml)",),
+                dialog_type=webview.FileDialog.OPEN,
+                file_types=("YAML Files (*.yaml;*.yml)", "All files (*.*)"),
             )
             if not result:
                 return json.dumps({"error": "No file selected"})

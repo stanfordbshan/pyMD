@@ -9,6 +9,9 @@ let simEnergyData = { steps: [], pe: [], ke: [], total: [] };
 let minEnergyHistory = [];
 let lastSimResult = null;
 let lastMinResult = null;
+let loadedCoordinates = null; // Stores custom positions from YAML
+let pendingXyz = null; // XYZ string waiting for viewer to be visible
+let defaultView = null; // Saved default camera view for reset
 
 // ---- Tab Switching ----
 document.querySelectorAll(".nav-item").forEach((item) => {
@@ -19,9 +22,20 @@ document.querySelectorAll(".nav-item").forEach((item) => {
     const tab = item.dataset.tab;
     document.getElementById("tab-" + tab).classList.add("active");
 
-    // Initialize 3Dmol viewer when switching to visualization tab
-    if (tab === "visualization" && !viewer) {
-      initViewer();
+    // Initialize or refresh 3Dmol viewer when switching to visualization tab
+    if (tab === "visualization") {
+      // Small delay lets the browser finish layout before 3Dmol measures its container
+      requestAnimationFrame(() => {
+        if (!viewer) {
+          initViewer();
+          if (pendingXyz) {
+            loadXyzIntoViewer(pendingXyz);
+          }
+        } else {
+          viewer.resize();
+          viewer.render();
+        }
+      });
     }
   });
 });
@@ -30,29 +44,77 @@ document.querySelectorAll(".nav-item").forEach((item) => {
 function initViewer() {
   const container = document.getElementById("mol-viewer");
   if (!container || viewer) return;
+
   viewer = $3Dmol.createViewer(container, {
-    backgroundColor: "white",
+    backgroundColor: 0x1a1a2e,
     antialias: true,
+    disableFog: true,
+    cartoonQuality: 6,
   });
-  viewer.zoomTo();
+  viewer.setHoverable({}, false);
   viewer.render();
 }
 
-function updateViewer(xyzString) {
-  if (!viewer) initViewer();
-  if (!viewer || !xyzString) return;
+// Handle window resize — keep viewer sized correctly
+window.addEventListener("resize", () => {
+  if (viewer) {
+    viewer.resize();
+    viewer.render();
+  }
+});
+
+function getViewerStyle() {
+  const sel = document.getElementById("cfg-viewer-style");
+  const mode = sel ? sel.value : "ball-stick";
+  const cs = { colorscheme: "Jmol" };
+  switch (mode) {
+    case "sphere":
+      return { sphere: { ...cs } };
+    case "ball-stick":
+      return { sphere: { scale: 0.3, ...cs }, stick: { radius: 0.15, ...cs } };
+    case "stick":
+      return { stick: { radius: 0.15, ...cs } };
+    case "line":
+      return { line: { ...cs } };
+    default:
+      return { sphere: { scale: 0.3, ...cs } };
+  }
+}
+
+function loadXyzIntoViewer(xyzString, preserveView) {
+  if (!viewer) return;
+  const savedView = preserveView ? viewer.getView() : null;
   viewer.removeAllModels();
   viewer.addModel(xyzString, "xyz");
-  viewer.setStyle({}, { sphere: { scale: 0.3, colorscheme: "Jmol" } });
-  viewer.zoomTo();
+  viewer.setStyle({}, getViewerStyle());
+  if (savedView) {
+    viewer.setView(savedView);
+  } else {
+    viewer.zoomTo();
+  }
   viewer.render();
+  if (!preserveView) {
+    defaultView = viewer.getView();
+  }
+}
+
+function updateViewer(xyzString, preserveView) {
+  pendingXyz = xyzString;
+  if (!xyzString) return;
+  const visTab = document.getElementById("tab-visualization");
+  if (!visTab.classList.contains("active")) return;
+  if (!viewer) initViewer();
+  if (!viewer) return;
+  loadXyzIntoViewer(xyzString, preserveView);
 }
 
 // ---- Setup Tab: Dynamic Form ----
 document.getElementById("cfg-lattice-type").addEventListener("change", (e) => {
-  const isRandom = e.target.value === "random";
-  document.getElementById("lattice-params-grid").style.display = isRandom ? "none" : "grid";
-  document.getElementById("random-params-grid").style.display = isRandom ? "grid" : "none";
+  const val = e.target.value;
+  document.getElementById("lattice-params-grid").style.display =
+    (val !== "random" && val !== "positions") ? "grid" : "none";
+  document.getElementById("random-params-grid").style.display = val === "random" ? "grid" : "none";
+  document.getElementById("positions-params-grid").style.display = val === "positions" ? "grid" : "none";
 });
 
 document.getElementById("cfg-boundary").addEventListener("change", (e) => {
@@ -114,6 +176,18 @@ function populateForm(config) {
   if (lat.lx) document.getElementById("cfg-lx").value = lat.lx;
   if (lat.ly) document.getElementById("cfg-ly").value = lat.ly;
   if (lat.lz) document.getElementById("cfg-lz").value = lat.lz;
+
+  // Custom positions
+  if (lat.coordinates) {
+    loadedCoordinates = lat.coordinates;
+    document.getElementById("positions-info").textContent =
+      loadedCoordinates.length + " custom positions loaded";
+  }
+  if (lat.type && lat.type.toLowerCase() === "positions") {
+    if (lat.lx) document.getElementById("cfg-pos-lx").value = lat.lx;
+    if (lat.ly) document.getElementById("cfg-pos-ly").value = lat.ly;
+    if (lat.lz) document.getElementById("cfg-pos-lz").value = lat.lz;
+  }
 
   // Boundary
   const bc = config.boundary || {};
@@ -215,6 +289,11 @@ function gatherConfig() {
     config.system.lattice.lx = parseFloat(document.getElementById("cfg-lx").value);
     config.system.lattice.ly = parseFloat(document.getElementById("cfg-ly").value);
     config.system.lattice.lz = parseFloat(document.getElementById("cfg-lz").value);
+  } else if (latticeType === "positions") {
+    config.system.lattice.coordinates = loadedCoordinates || [];
+    config.system.lattice.lx = parseFloat(document.getElementById("cfg-pos-lx").value);
+    config.system.lattice.ly = parseFloat(document.getElementById("cfg-pos-ly").value);
+    config.system.lattice.lz = parseFloat(document.getElementById("cfg-pos-lz").value);
   } else {
     config.system.lattice.nx = parseInt(document.getElementById("cfg-nx").value);
     config.system.lattice.ny = parseInt(document.getElementById("cfg-ny").value);
@@ -344,8 +423,8 @@ function onSimulationUpdate(data, xyzString) {
     { data: simEnergyData.total, color: "#6c8cff", label: "Total" },
   ]);
 
-  // Update 3D viewer
-  updateViewer(xyzString);
+  // Update 3D viewer (preserve camera angle during simulation)
+  updateViewer(xyzString, true);
 }
 
 function onSimulationDone() {
@@ -514,8 +593,21 @@ document.getElementById("btn-copy-data").addEventListener("click", () => {
 // ---- Reset View ----
 document.getElementById("btn-reset-view").addEventListener("click", () => {
   if (viewer) {
-    viewer.zoomTo();
-    viewer.render();
+    viewer.resize();
+    if (defaultView) {
+      viewer.setView(defaultView);
+      viewer.render();
+    } else {
+      viewer.zoomTo();
+      viewer.render();
+    }
+  }
+});
+
+// ---- Viewer Style Change ----
+document.getElementById("cfg-viewer-style").addEventListener("change", () => {
+  if (viewer && pendingXyz) {
+    loadXyzIntoViewer(pendingXyz, true);
   }
 });
 
