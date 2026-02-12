@@ -124,6 +124,14 @@ class SimulatorAPI:
                 builder.random_positions(
                     n_atoms=int(lattice_config.get("n_atoms", 100)),
                 )
+            elif lattice_type == "positions":
+                coords = lattice_config.get("coordinates", [])
+                builder.box(
+                    float(lattice_config.get("lx", 100.0)),
+                    float(lattice_config.get("ly", 100.0)),
+                    float(lattice_config.get("lz", 100.0)),
+                )
+                builder.positions(np.array(coords, dtype=float))
 
             if "temperature" in sys_config:
                 builder.temperature(float(sys_config["temperature"]))

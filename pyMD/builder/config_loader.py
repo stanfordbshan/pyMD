@@ -211,6 +211,14 @@ def build_simulation_from_config(
         builder.random_positions(
             n_atoms=lattice_config.get("n_atoms", 100),
         )
+    elif lattice_type == "positions":
+        coords = lattice_config.get("coordinates", [])
+        builder.box(
+            lattice_config.get("lx", 100.0),
+            lattice_config.get("ly", 100.0),
+            lattice_config.get("lz", 100.0),
+        )
+        builder.positions(np.array(coords, dtype=float))
 
     # Temperature for velocity initialization
     if "temperature" in sys_config:
