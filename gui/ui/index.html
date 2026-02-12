@@ -74,6 +74,7 @@
                 <option value="bcc">BCC</option>
                 <option value="sc">SC</option>
                 <option value="random">Random</option>
+                <option value="positions">Positions (custom)</option>
               </select>
             </label>
             <div id="lattice-params-grid" class="param-subgrid">
@@ -87,6 +88,12 @@
               <label>box lx <input type="number" id="cfg-lx" value="10.0" step="0.5"></label>
               <label>box ly <input type="number" id="cfg-ly" value="10.0" step="0.5"></label>
               <label>box lz <input type="number" id="cfg-lz" value="10.0" step="0.5"></label>
+            </div>
+            <div id="positions-params-grid" class="param-subgrid" style="display:none;">
+              <span id="positions-info" class="info-text">No positions loaded</span>
+              <label>box lx <input type="number" id="cfg-pos-lx" value="100.0" step="1"></label>
+              <label>box ly <input type="number" id="cfg-pos-ly" value="100.0" step="1"></label>
+              <label>box lz <input type="number" id="cfg-pos-lz" value="100.0" step="1"></label>
             </div>
             <label>Temperature <input type="number" id="cfg-temperature" value="0.8" step="0.1"></label>
           </fieldset>
@@ -167,11 +174,21 @@
       </section>
 
       <!-- ==================== VISUALIZATION TAB ==================== -->
-      <section id="tab-visualization" class="tab-panel">
-        <h2>3D Visualization</h2>
-        <div class="viewer-controls">
-          <button id="btn-reset-view" class="btn btn-secondary">Reset View</button>
+      <section id="tab-visualization" class="tab-panel tab-visualization">
+        <div class="viewer-toolbar">
+          <h2>3D Visualization</h2>
           <span id="viewer-info" class="info-text">Build a system to see atoms</span>
+          <div class="viewer-toolbar-right">
+            <label class="toolbar-label">Style
+              <select id="cfg-viewer-style">
+                <option value="ball-stick" selected>Ball &amp; Stick</option>
+                <option value="sphere">Space-filling</option>
+                <option value="stick">Stick</option>
+                <option value="line">Line</option>
+              </select>
+            </label>
+            <button id="btn-reset-view" class="btn btn-secondary btn-sm">Reset View</button>
+          </div>
         </div>
         <div id="viewer-container">
           <div id="mol-viewer"></div>
