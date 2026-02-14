@@ -129,7 +129,7 @@ document.getElementById("cfg-potential-type").addEventListener("change", (e) => 
 });
 
 document.getElementById("cfg-thermostat-type").addEventListener("change", (e) => {
-  document.getElementById("thermostat-params").style.display =
+  document.getElementById("thermostat-tau-param").style.display =
     e.target.value === "nve" ? "none" : "block";
 });
 
@@ -162,9 +162,7 @@ function populateForm(config) {
   if (sys.element) document.getElementById("cfg-element").value = sys.element;
   if (sys.mass) document.getElementById("cfg-mass").value = sys.mass;
   if (sys.temperature != null) {
-    document.getElementById("cfg-temperature").value = sys.temperature;
-    // Also set simulation init temp from YAML temperature
-    document.getElementById("sim-init-temp").value = sys.temperature;
+    document.getElementById("cfg-thermo-temp").value = sys.temperature;
   }
 
   const lat = sys.lattice || {};
@@ -270,13 +268,15 @@ function gatherConfig() {
   const bcType = document.getElementById("cfg-boundary").value;
   const thermoType = document.getElementById("cfg-thermostat-type").value;
 
+  const temperature = parseFloat(document.getElementById("cfg-thermo-temp").value);
+
   const config = {
     units: document.getElementById("cfg-units").value,
     system: {
       element: document.getElementById("cfg-element").value,
       mass: parseFloat(document.getElementById("cfg-mass").value),
       lattice: { type: latticeType },
-      temperature: parseFloat(document.getElementById("cfg-temperature").value),
+      temperature: temperature,
     },
     boundary: { type: bcType },
     integrator: { dt: parseFloat(document.getElementById("cfg-dt").value) },
@@ -334,9 +334,7 @@ function gatherConfig() {
 
   // Thermostat
   if (thermoType !== "nve") {
-    config.thermostat.temperature = parseFloat(
-      document.getElementById("cfg-thermo-temp").value
-    );
+    config.thermostat.temperature = temperature;
     config.thermostat.tau = parseFloat(document.getElementById("cfg-thermo-tau").value);
   }
 
@@ -366,7 +364,7 @@ document.getElementById("btn-start-sim").addEventListener("click", async () => {
     return;
   }
   const steps = parseInt(document.getElementById("sim-steps").value);
-  const initTemp = parseFloat(document.getElementById("sim-init-temp").value);
+  const initTemp = parseFloat(document.getElementById("cfg-thermo-temp").value);
   const vizInterval = parseInt(document.getElementById("sim-viz-interval").value);
 
   // Reset chart data

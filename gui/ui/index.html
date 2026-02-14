@@ -95,7 +95,6 @@
               <label>box ly <input type="number" id="cfg-pos-ly" value="100.0" step="1"></label>
               <label>box lz <input type="number" id="cfg-pos-lz" value="100.0" step="1"></label>
             </div>
-            <label>Temperature <input type="number" id="cfg-temperature" value="0.8" step="0.1"></label>
           </fieldset>
 
           <!-- Boundary -->
@@ -143,9 +142,10 @@
             <label>dt (timestep) <input type="number" id="cfg-dt" value="0.005" step="0.001"></label>
           </fieldset>
 
-          <!-- Thermostat -->
+          <!-- Ensemble -->
           <fieldset class="form-section">
-            <legend>Thermostat</legend>
+            <legend>Ensemble</legend>
+            <label>Temperature <input type="number" id="cfg-thermo-temp" value="0.8" step="0.1"></label>
             <label>Type
               <select id="cfg-thermostat-type">
                 <option value="nve" selected>NVE (No thermostat)</option>
@@ -153,8 +153,7 @@
                 <option value="nose_hoover">Nose-Hoover</option>
               </select>
             </label>
-            <div id="thermostat-params" style="display:none;">
-              <label>Target Temperature <input type="number" id="cfg-thermo-temp" value="0.8" step="0.1"></label>
+            <div id="thermostat-tau-param" style="display:none;">
               <label>tau (coupling) <input type="number" id="cfg-thermo-tau" value="0.5" step="0.1"></label>
             </div>
           </fieldset>
@@ -200,7 +199,6 @@
         <h2>Simulation</h2>
         <div class="sim-controls">
           <label>Steps <input type="number" id="sim-steps" value="2000" min="1"></label>
-          <label>Init Temp <input type="number" id="sim-init-temp" value="1.0" step="0.1" min="0"></label>
           <label>Viz Interval <input type="number" id="sim-viz-interval" value="50" min="1"></label>
           <button id="btn-start-sim" class="btn btn-primary">Start</button>
           <button id="btn-stop-sim" class="btn btn-danger" disabled>Stop</button>
