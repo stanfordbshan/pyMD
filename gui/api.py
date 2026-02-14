@@ -190,7 +190,7 @@ class SimulatorAPI:
     #  Simulation
     # ------------------------------------------------------------------ #
 
-    def start_simulation(self, num_steps, viz_interval=50):
+    def start_simulation(self, num_steps, viz_interval=50, init_temp=1.0):
         """Spawn daemon thread to run simulation step by step."""
         if self._system is None:
             return json.dumps({"error": "No system built. Use Setup tab first."})
@@ -199,7 +199,11 @@ class SimulatorAPI:
 
         num_steps = int(num_steps)
         viz_interval = int(viz_interval)
+        init_temp = float(init_temp)
         self._running = True
+
+        # Initialize velocities from Maxwell-Boltzmann distribution
+        self._initialize_velocities(init_temp)
 
         # Create energy observer
         self._energy_observer = EnergyObserver(interval=1)
@@ -290,6 +294,9 @@ class SimulatorAPI:
         params = json.loads(params_json) if isinstance(params_json, str) else params_json
         self._running = True
 
+        # Zero out velocities for minimization
+        self._system.state.velocities[:] = 0.0
+
         def minimize_thread():
             try:
                 force_tol = float(params.get("force_tol", 1e-4))
@@ -341,6 +348,38 @@ class SimulatorAPI:
     # ------------------------------------------------------------------ #
     #  Utility
     # ------------------------------------------------------------------ #
+
+    def _initialize_velocities(self, temperature):
+        """Initialize velocities from Maxwell-Boltzmann distribution."""
+        system = self._system
+        n_atoms = system.get_num_atoms()
+
+        if temperature <= 0 or n_atoms < 2:
+            system.state.velocities[:] = 0.0
+            return
+
+        kB = system.units.boltzmann
+        masses = system.get_masses()
+
+        # Maxwell-Boltzmann: v_i ~ N(0, sqrt(kB*T/m_i))
+        velocities = np.random.randn(n_atoms, 3)
+        for i in range(n_atoms):
+            sigma = np.sqrt(kB * temperature / masses[i])
+            velocities[i] *= sigma
+
+        # Remove center of mass velocity
+        total_mass = np.sum(masses)
+        com_velocity = np.sum(masses[:, np.newaxis] * velocities, axis=0) / total_mass
+        velocities -= com_velocity
+
+        # Rescale to exact target temperature
+        ke = 0.5 * np.sum(masses[:, np.newaxis] * velocities ** 2)
+        n_dof = 3 * n_atoms - 3
+        current_temp = 2.0 * ke / (n_dof * kB)
+        if current_temp > 0:
+            velocities *= np.sqrt(temperature / current_temp)
+
+        system.state.velocities[:] = velocities
 
     def _system_to_xyz(self):
         """Convert system positions + atom types to XYZ string."""

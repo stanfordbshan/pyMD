@@ -161,7 +161,11 @@ function populateForm(config) {
   const sys = config.system || {};
   if (sys.element) document.getElementById("cfg-element").value = sys.element;
   if (sys.mass) document.getElementById("cfg-mass").value = sys.mass;
-  if (sys.temperature != null) document.getElementById("cfg-temperature").value = sys.temperature;
+  if (sys.temperature != null) {
+    document.getElementById("cfg-temperature").value = sys.temperature;
+    // Also set simulation init temp from YAML temperature
+    document.getElementById("sim-init-temp").value = sys.temperature;
+  }
 
   const lat = sys.lattice || {};
   if (lat.type) {
@@ -362,6 +366,7 @@ document.getElementById("btn-start-sim").addEventListener("click", async () => {
     return;
   }
   const steps = parseInt(document.getElementById("sim-steps").value);
+  const initTemp = parseFloat(document.getElementById("sim-init-temp").value);
   const vizInterval = parseInt(document.getElementById("sim-viz-interval").value);
 
   // Reset chart data
@@ -373,7 +378,7 @@ document.getElementById("btn-start-sim").addEventListener("click", async () => {
   setStatus("Simulation running...", "running");
 
   try {
-    const raw = await pywebview.api.start_simulation(steps, vizInterval);
+    const raw = await pywebview.api.start_simulation(steps, vizInterval, initTemp);
     const result = JSON.parse(raw);
     if (result.error) {
       setStatus("Error: " + result.error, "error");
