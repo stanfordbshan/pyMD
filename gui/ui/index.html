@@ -50,9 +50,9 @@
         </div>
 
         <div class="form-grid">
-          <!-- Units -->
+          <!-- System -->
           <fieldset class="form-section">
-            <legend>Units</legend>
+            <legend>System</legend>
             <label>Unit System
               <select id="cfg-units">
                 <option value="LJ" selected>LJ (Reduced)</option>
@@ -61,11 +61,6 @@
                 <option value="SI">SI</option>
               </select>
             </label>
-          </fieldset>
-
-          <!-- System -->
-          <fieldset class="form-section">
-            <legend>System</legend>
             <label>Element <input type="text" id="cfg-element" value="Ar"></label>
             <label>Mass <input type="number" id="cfg-mass" value="1.0" step="0.1"></label>
             <label>Lattice Type
@@ -95,12 +90,7 @@
               <label>box ly <input type="number" id="cfg-pos-ly" value="100.0" step="1"></label>
               <label>box lz <input type="number" id="cfg-pos-lz" value="100.0" step="1"></label>
             </div>
-          </fieldset>
-
-          <!-- Boundary -->
-          <fieldset class="form-section">
-            <legend>Boundary</legend>
-            <label>Type
+            <label>Boundary
               <select id="cfg-boundary">
                 <option value="periodic" selected>Periodic</option>
                 <option value="open">Open</option>
@@ -136,17 +126,12 @@
             </div>
           </fieldset>
 
-          <!-- Integrator -->
+          <!-- Dynamics -->
           <fieldset class="form-section">
-            <legend>Integrator</legend>
+            <legend>Dynamics</legend>
             <label>dt (timestep) <input type="number" id="cfg-dt" value="0.005" step="0.001"></label>
-          </fieldset>
-
-          <!-- Ensemble -->
-          <fieldset class="form-section">
-            <legend>Ensemble</legend>
             <label>Temperature <input type="number" id="cfg-thermo-temp" value="0.8" step="0.1"></label>
-            <label>Type
+            <label>Thermostat
               <select id="cfg-thermostat-type">
                 <option value="nve" selected>NVE (No thermostat)</option>
                 <option value="berendsen">Berendsen</option>
@@ -156,11 +141,6 @@
             <div id="thermostat-tau-param" style="display:none;">
               <label>tau (coupling) <input type="number" id="cfg-thermo-tau" value="0.5" step="0.1"></label>
             </div>
-          </fieldset>
-
-          <!-- Observers -->
-          <fieldset class="form-section">
-            <legend>Observers</legend>
             <label>Energy Interval <input type="number" id="cfg-energy-interval" value="100" min="1"></label>
           </fieldset>
         </div>
