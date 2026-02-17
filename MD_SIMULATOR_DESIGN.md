@@ -56,7 +56,7 @@
 ## Project Structure
 
 ```
-pyMD/
+pymd/
 ├── core/
 │   ├── atom.py              # Atom class (type, mass, charge)
 │   ├── state.py             # State class (positions, velocities, forces)
@@ -133,7 +133,7 @@ pyMD/
 │   └── rdf_observer.py            # Radial distribution function
 │
 ├── simulator/                # Template Method + Facade
-│   ├── pyMD.py            # Main simulation engine
+│   ├── pymd.py            # Main simulation engine
 │   └── simulation_factory.py      # Factory for complete simulations
 │
 ├── builder/                  # Builder + Factory Patterns
@@ -2358,7 +2358,7 @@ WHY:
 
 ### **Example 1: Simple LJ Gas**
 ```python
-from pyMD import *
+from pymd import *
 
 # Setup
 units = Units.LJ()

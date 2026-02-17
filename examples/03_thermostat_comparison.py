@@ -21,14 +21,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import numpy as np
-from pyMD.builder import SystemBuilder
-from pyMD.core import Units
-from pyMD.force import ForceCalculator, NumericalBackend
-from pyMD.integrator import VelocityVerlet
-from pyMD.potential import LennardJonesPotential
-from pyMD.simulator import Simulator
-from pyMD.thermostat import NoThermostat, BerendsenThermostat
-from pyMD.observer import EnergyObserver
+from pymd.builder import SystemBuilder
+from pymd.core import Units
+from pymd.force import ForceCalculator, NumericalBackend
+from pymd.integrator import VelocityVerlet
+from pymd.potential import LennardJonesPotential
+from pymd.simulator import Simulator
+from pymd.thermostat import NoThermostat, BerendsenThermostat
+from pymd.observer import EnergyObserver
 
 
 def run_simulation(thermostat, name, steps=100):

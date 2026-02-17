@@ -6,7 +6,7 @@ Tests for Atom, State, System, Units, and ElementRegistry classes.
 import numpy as np
 import pytest
 
-from pyMD.core import (
+from pymd.core import (
     Atom,
     ElementData,
     ElementRegistry,
@@ -16,7 +16,7 @@ from pyMD.core import (
     UnitSystemType,
     elements,
 )
-from pyMD.boundary import PeriodicBoundaryCondition
+from pymd.boundary import PeriodicBoundaryCondition
 
 
 class TestAtom:
