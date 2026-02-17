@@ -6,8 +6,8 @@ Tests for NeighborList implementations: BruteForce, Verlet, and Cell lists.
 import numpy as np
 import pytest
 
-from pyMD.boundary import PeriodicBoundaryCondition
-from pyMD.neighbor import (
+from pymd.boundary import PeriodicBoundaryCondition
+from pymd.neighbor import (
     BruteForceNeighborList,
     CellList,
     NeighborList,

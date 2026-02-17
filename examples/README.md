@@ -1,4 +1,4 @@
-# pyMD Educational Examples
+# pymd Educational Examples
 
 A series of runnable examples demonstrating molecular dynamics concepts.
 

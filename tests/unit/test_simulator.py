@@ -4,17 +4,17 @@ Unit tests for observer and simulator modules.
 import numpy as np
 import pytest
 
-from pyMD.core import Atom, State, System, Units
-from pyMD.boundary import PeriodicBoundaryCondition
-from pyMD.integrator import VelocityVerlet
-from pyMD.observer import (
+from pymd.core import Atom, State, System, Units
+from pymd.boundary import PeriodicBoundaryCondition
+from pymd.integrator import VelocityVerlet
+from pymd.observer import (
     CompositeObserver,
     EnergyObserver,
     Observer,
     PrintObserver,
 )
-from pyMD.simulator import Simulator, SimulatorBuilder
-from pyMD.thermostat import NoThermostat
+from pymd.simulator import Simulator, SimulatorBuilder
+from pymd.thermostat import NoThermostat
 
 
 class MockForceCalculator:
