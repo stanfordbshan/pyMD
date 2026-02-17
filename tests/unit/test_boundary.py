@@ -7,7 +7,7 @@ and MixedBoundaryCondition classes.
 import numpy as np
 import pytest
 
-from md_simulator.boundary import (
+from pyMD.boundary import (
     BoundaryCondition,
     MixedBoundaryCondition,
     OpenBoundaryCondition,
