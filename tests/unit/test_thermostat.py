@@ -4,9 +4,9 @@ Unit tests for thermostat module.
 import numpy as np
 import pytest
 
-from pyMD.core import Atom, State, System, Units
-from pyMD.boundary import PeriodicBoundaryCondition
-from pyMD.thermostat import (
+from pymd.core import Atom, State, System, Units
+from pymd.boundary import PeriodicBoundaryCondition
+from pymd.thermostat import (
     BerendsenThermostat,
     NoThermostat,
     NoseHooverThermostat,

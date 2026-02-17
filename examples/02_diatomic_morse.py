@@ -21,14 +21,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import numpy as np
-from pyMD.core import Atom, State, System, Units
-from pyMD.boundary import OpenBoundaryCondition
-from pyMD.force import ForceCalculator, NumericalBackend
-from pyMD.integrator import VelocityVerlet
-from pyMD.potential import MorsePotential
-from pyMD.simulator import Simulator
-from pyMD.thermostat import NoThermostat
-from pyMD.observer import EnergyObserver
+from pymd.core import Atom, State, System, Units
+from pymd.boundary import OpenBoundaryCondition
+from pymd.force import ForceCalculator, NumericalBackend
+from pymd.integrator import VelocityVerlet
+from pymd.potential import MorsePotential
+from pymd.simulator import Simulator
+from pymd.thermostat import NoThermostat
+from pymd.observer import EnergyObserver
 
 
 def main():

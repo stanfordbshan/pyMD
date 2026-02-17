@@ -4,9 +4,9 @@ Unit tests for minimizer module.
 import numpy as np
 import pytest
 
-from pyMD.core import Atom, State, System, Units
-from pyMD.boundary import PeriodicBoundaryCondition
-from pyMD.minimizer import (
+from pymd.core import Atom, State, System, Units
+from pymd.boundary import PeriodicBoundaryCondition
+from pymd.minimizer import (
     Minimizer,
     MinimizationResult,
     SteepestDescent,
