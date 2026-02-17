@@ -1,4 +1,4 @@
-# pyMD 分子动力学模拟器
+# pymd 分子动力学模拟器
 
 一个用Python编写的模块化分子动力学(MD)模拟框架。
 
@@ -28,13 +28,13 @@ conda activate pymd
 ## 快速开始
 
 ```python
-from pyMD.builder import SystemBuilder
-from pyMD.core import Units
-from pyMD.force import ForceCalculator, NumericalBackend
-from pyMD.integrator import VelocityVerlet
-from pyMD.potential import LennardJonesPotential
-from pyMD.simulator import Simulator
-from pyMD.thermostat import NoThermostat
+from pymd.builder import SystemBuilder
+from pymd.core import Units
+from pymd.force import ForceCalculator, NumericalBackend
+from pymd.integrator import VelocityVerlet
+from pymd.potential import LennardJonesPotential
+from pymd.simulator import Simulator
+from pymd.thermostat import NoThermostat
 
 # 构建系统
 system = (

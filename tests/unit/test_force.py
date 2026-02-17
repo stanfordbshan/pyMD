@@ -6,13 +6,13 @@ Tests for autodiff backends and force calculator.
 import numpy as np
 import pytest
 
-from pyMD.boundary import PeriodicBoundaryCondition
-from pyMD.force import (
+from pymd.boundary import PeriodicBoundaryCondition
+from pymd.force import (
     AutoDiffBackend,
     BackendFactory,
     NumericalBackend,
 )
-from pyMD.potential import LennardJonesPotential
+from pymd.potential import LennardJonesPotential
 
 
 class TestNumericalBackend:

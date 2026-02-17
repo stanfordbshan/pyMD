@@ -5,7 +5,7 @@ Example 7: Geometry Optimization
 Minimize the energy of a 5-atom Lennard-Jones cluster using three
 different minimization algorithms: Steepest Descent, Conjugate Gradient,
 and L-BFGS. Then independently verify the final energy by computing
-the LJ pair sum directly (no pyMD code).
+the LJ pair sum directly (no pymd code).
 
 Physics:
     U(r) = 4ε[(σ/r)¹² - (σ/r)⁶]
@@ -22,15 +22,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import numpy as np
-from pyMD.core import Atom, State, System, Units
-from pyMD.boundary import OpenBoundaryCondition
-from pyMD.force import ForceCalculator, NumericalBackend
-from pyMD.potential import LennardJonesPotential
-from pyMD.minimizer import SteepestDescent, ConjugateGradient, LBFGS
+from pymd.core import Atom, State, System, Units
+from pymd.boundary import OpenBoundaryCondition
+from pymd.force import ForceCalculator, NumericalBackend
+from pymd.potential import LennardJonesPotential
+from pymd.minimizer import SteepestDescent, ConjugateGradient, LBFGS
 
 
 def compute_lj_energy_manual(positions, epsilon, sigma):
-    """Direct pair summation — no pyMD code used."""
+    """Direct pair summation — no pymd code used."""
     energy = 0.0
     n = len(positions)
     for i in range(n):
@@ -120,7 +120,7 @@ def main():
     pymd_energy = best_result.final_energy
 
     print(f"\n--- Independent Energy Verification (L-BFGS result) ---")
-    print(f"pyMD energy:    {pymd_energy:.10f}")
+    print(f"pymd energy:    {pymd_energy:.10f}")
     print(f"Manual energy:  {manual_energy:.10f}")
     print(f"Difference:     {abs(pymd_energy - manual_energy):.2e}")
 
