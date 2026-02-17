@@ -3,7 +3,7 @@
 Example: LJ Argon Simulation
 
 Simulates liquid argon using Lennard-Jones potential in reduced units.
-Demonstrates basic usage of the pyMD framework.
+Demonstrates basic usage of the pymd framework.
 
 Usage:
     python examples/run_lj_argon.py
@@ -16,22 +16,22 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import numpy as np
 
-from pyMD.builder import SystemBuilder
-from pyMD.boundary import PeriodicBoundaryCondition
-from pyMD.core import Units
-from pyMD.force import ForceCalculator, NumericalBackend
-from pyMD.integrator import VelocityVerlet
-from pyMD.observer import EnergyObserver, PrintObserver
-from pyMD.potential import LennardJonesPotential
-from pyMD.simulator import Simulator
-from pyMD.thermostat import BerendsenThermostat, NoThermostat
+from pymd.builder import SystemBuilder
+from pymd.boundary import PeriodicBoundaryCondition
+from pymd.core import Units
+from pymd.force import ForceCalculator, NumericalBackend
+from pymd.integrator import VelocityVerlet
+from pymd.observer import EnergyObserver, PrintObserver
+from pymd.potential import LennardJonesPotential
+from pymd.simulator import Simulator
+from pymd.thermostat import BerendsenThermostat, NoThermostat
 
 
 def main():
     """Run LJ Argon simulation."""
     print("=" * 60)
     print("  LJ ARGON SIMULATION")
-    print("  pyMD Molecular Dynamics Framework")
+    print("  pymd Molecular Dynamics Framework")
     print("=" * 60)
 
     # =========================================================================

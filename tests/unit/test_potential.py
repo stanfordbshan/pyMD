@@ -6,8 +6,8 @@ Tests for LennardJones, Morse, and EAM potentials.
 import numpy as np
 import pytest
 
-from pyMD.boundary import PeriodicBoundaryCondition
-from pyMD.potential import (
+from pymd.boundary import PeriodicBoundaryCondition
+from pymd.potential import (
     CompositePotential,
     LennardJonesPotential,
     MorsePotential,

@@ -14,11 +14,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import numpy as np
-from pyMD.core import Atom, State, System, Units
-from pyMD.boundary import OpenBoundaryCondition
-from pyMD.force import ForceCalculator, NumericalBackend
-from pyMD.potential import LennardJonesPotential
-from pyMD.minimizer import LBFGS
+from pymd.core import Atom, State, System, Units
+from pymd.boundary import OpenBoundaryCondition
+from pymd.force import ForceCalculator, NumericalBackend
+from pymd.potential import LennardJonesPotential
+from pymd.minimizer import LBFGS
 
 
 def main():

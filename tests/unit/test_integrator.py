@@ -4,9 +4,9 @@ Unit tests for integrator module.
 import numpy as np
 import pytest
 
-from pyMD.core import Atom, State, System, Units
-from pyMD.boundary import PeriodicBoundaryCondition
-from pyMD.integrator import Integrator, VelocityVerlet
+from pymd.core import Atom, State, System, Units
+from pymd.boundary import PeriodicBoundaryCondition
+from pymd.integrator import Integrator, VelocityVerlet
 
 
 class MockForceCalculator:

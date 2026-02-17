@@ -15,14 +15,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import numpy as np
 
-from pyMD.core import Atom, State, System, Units
-from pyMD.boundary import PeriodicBoundaryCondition
-from pyMD.force import ForceCalculator, NumericalBackend
-from pyMD.integrator import VelocityVerlet
-from pyMD.observer import EnergyObserver
-from pyMD.potential import LennardJonesPotential
-from pyMD.simulator import Simulator
-from pyMD.thermostat import NoThermostat
+from pymd.core import Atom, State, System, Units
+from pymd.boundary import PeriodicBoundaryCondition
+from pymd.force import ForceCalculator, NumericalBackend
+from pymd.integrator import VelocityVerlet
+from pymd.observer import EnergyObserver
+from pymd.potential import LennardJonesPotential
+from pymd.simulator import Simulator
+from pymd.thermostat import NoThermostat
 
 
 def main():
