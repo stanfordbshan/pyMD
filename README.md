@@ -28,13 +28,13 @@ conda activate pymd
 ## 快速开始
 
 ```python
-from md_simulator.builder import SystemBuilder
-from md_simulator.core import Units
-from md_simulator.force import ForceCalculator, NumericalBackend
-from md_simulator.integrator import VelocityVerlet
-from md_simulator.potential import LennardJonesPotential
-from md_simulator.simulator import Simulator
-from md_simulator.thermostat import NoThermostat
+from pyMD.builder import SystemBuilder
+from pyMD.core import Units
+from pyMD.force import ForceCalculator, NumericalBackend
+from pyMD.integrator import VelocityVerlet
+from pyMD.potential import LennardJonesPotential
+from pyMD.simulator import Simulator
+from pyMD.thermostat import NoThermostat
 
 # 构建系统
 system = (

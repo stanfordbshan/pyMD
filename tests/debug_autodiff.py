@@ -22,13 +22,13 @@ import numpy as np
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from md_simulator.boundary import PeriodicBoundaryCondition
-from md_simulator.force import (
+from pyMD.boundary import PeriodicBoundaryCondition
+from pyMD.force import (
     BackendFactory,
     JAXBackend,
     NumericalBackend,
 )
-from md_simulator.potential import LennardJonesPotential
+from pyMD.potential import LennardJonesPotential
 
 # =============================================================================
 # LJ Parameters (reduced units)

@@ -23,13 +23,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import numpy as np
-from md_simulator.builder import SystemBuilder
-from md_simulator.core import Units
-from md_simulator.force import ForceCalculator, NumericalBackend
-from md_simulator.integrator import VelocityVerlet
-from md_simulator.potential import LennardJonesPotential
-from md_simulator.simulator import Simulator
-from md_simulator.thermostat import BerendsenThermostat
+from pyMD.builder import SystemBuilder
+from pyMD.core import Units
+from pyMD.force import ForceCalculator, NumericalBackend
+from pyMD.integrator import VelocityVerlet
+from pyMD.potential import LennardJonesPotential
+from pyMD.simulator import Simulator
+from pyMD.thermostat import BerendsenThermostat
 
 
 def compute_ke_components(system):
