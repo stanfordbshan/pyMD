@@ -2,7 +2,7 @@
 pymd Desktop Application entry point.
 
 Launches a pywebview window with the pymd GUI.
-Usage: python -m pymd.gui.main
+Usage: python -m pymd.gui
 """
 import os
 import sys
