@@ -85,5 +85,5 @@ MIT
 ## 作者
 
 本软件由 **Prof. Bin Shan (单斌教授)** 开发。
-如有问题或建议，请联系：bshan@mail.hust.edu.cn
+如有问题或建议，请联系：stanfordbshan@gmail.com
 

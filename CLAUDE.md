@@ -6,12 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 pymd is a Python molecular dynamics simulation framework where users write **only energy functions** `E(positions)` and forces `F = -∇E` are computed automatically via autodiff. This is the core design principle — no manual force derivations.
 
+The project follows a **backend-first** architecture: domain logic is framework-independent, and both the GUI and API are thin transport layers over a shared service (`core/service.py`) and shared schemas (`core/schemas.py`).
+
 ## Setup
 
 ```bash
 conda env create -f environment.yml
 conda activate pymd
-pip install -e .
+pip install -e ".[test,api]"
 ```
 
 Or manually: `pip install numpy pyyaml pytest` (Python >= 3.10 required).
@@ -19,20 +21,31 @@ Or manually: `pip install numpy pyyaml pytest` (Python >= 3.10 required).
 ## Commands
 
 ```bash
-# Run all unit tests (192 tests)
+# Run all tests (unit + integration, 199 tests)
+python -m pytest tests/ -q
+
+# Run unit tests only (192 tests)
 python -m pytest tests/unit/ -q
 
-# Run a specific test file
-python -m pytest tests/unit/test_potential.py -v
+# Run integration tests (direct vs API consistency)
+python -m pytest tests/integration/ -v
 
 # Run with coverage
-python -m pytest tests/unit/ --cov=pymd
+python -m pytest tests/ --cov=pymd
 
 # Run an example
 python examples/quick_test.py
+
+# Start the API server
+uvicorn pymd.api.app:app --reload
+
+# Launch the GUI
+python -m pymd.gui                 # auto mode
+python -m pymd.gui --mode direct   # in-process only
+python -m pymd.gui --mode api      # HTTP API only
 ```
 
-No linter or formatter is configured. The package uses a `src/` layout with `pyproject.toml` — install in editable mode with `pip install -e .`.
+The package uses a `src/` layout with `pyproject.toml` — install in editable mode with `pip install -e .`.
 
 ## Architecture
 
@@ -47,44 +60,48 @@ Simulator.run(num_steps) → loop: forces → integrate → thermostat → obser
 
 ### Module Layout
 
-- **`core/`** — `System` (central container), `State` (positions/velocities/forces arrays), `Atom`, `Units` (LAMMPS-style: LJ, REAL, METAL, SI), `ElementRegistry`
-- **`potential/`** — ABC `PotentialEnergy` with `compute_energy(positions, box, atom_types) → float`. Implementations: `LennardJonesPotential`, `MorsePotential`, `SuttonChenEAM`, `CompositePotential`
-- **`force/`** — `ForceCalculator` wraps a potential + an autodiff backend. `AutodiffBackend` implementations: `JAXBackend`, `PyTorchBackend`, `AutogradBackend`, `NumericalBackend` (fallback, no extra deps)
+- **`core/`** — `System`, `State`, `Atom`, `Units`, `ElementRegistry`, plus shared `schemas.py` (payload dataclasses) and `service.py` (backend business logic)
+- **`potential/`** — ABC `PotentialEnergy`. Implementations: `LennardJonesPotential`, `MorsePotential`, `SuttonChenEAM`, `CompositePotential`
+- **`force/`** — `ForceCalculator` + autodiff backends: `JAXBackend`, `PyTorchBackend`, `AutogradBackend`, `NumericalBackend`
 - **`boundary/`** — `PeriodicBoundaryCondition`, `OpenBoundaryCondition`, `MixedBoundaryCondition`
 - **`neighbor/`** — `BruteForceNeighborList`, `VerletList`, `CellList`
 - **`integrator/`** — `VelocityVerlet`
-- **`minimizer/`** — ABC `Minimizer` (template method) + `MinimizationResult`. Implementations: `SteepestDescent`, `ConjugateGradient` (Polak-Ribiere), `LBFGS` (two-loop recursion)
+- **`minimizer/`** — `SteepestDescent`, `ConjugateGradient`, `LBFGS`
 - **`thermostat/`** — `NoThermostat` (NVE), `BerendsenThermostat`, `NoseHooverThermostat`
 - **`observer/`** — `EnergyObserver`, `PrintObserver`, `CompositeObserver`
-- **`builder/`** — `SystemBuilder` (fluent API), `ConfigLoader` (YAML-based simulation setup)
+- **`builder/`** — `SystemBuilder` (fluent API), `ConfigLoader` (YAML)
 - **`simulator/`** — `Simulator` orchestrates the integration loop
-- **`gui/`** — Desktop GUI (pywebview + 3Dmol.js)
+- **`api/`** — FastAPI transport layer (routes + Pydantic models, no domain logic)
+- **`gui/`** — Desktop GUI: `bridge.py` (direct calls), `api_client.py` (HTTP), `runtime.py` (mode dispatcher), `assets/` (HTML/CSS/JS)
 
 ### Design Patterns
 
-Every swappable component (boundary conditions, neighbor lists, potentials, integrators, thermostats, observers) follows the **Strategy pattern**: an ABC defines the interface, concrete classes implement it. Components are interchangeable at construction time.
+Every swappable component follows the **Strategy pattern**: ABC + concrete classes. Other patterns: **Builder** (`SystemBuilder`), **Observer** (simulation monitoring), **Factory** (`BackendFactory`), **Composite** (`CompositePotential`, `CompositeObserver`).
 
-Other patterns: **Builder** (`SystemBuilder`), **Observer** (simulation monitoring), **Factory** (`BackendFactory` for autodiff backends), **Composite** (`CompositePotential`, `CompositeObserver`).
+### GUI Compute Modes
+
+The GUI supports `--mode direct|api|auto`:
+- **direct**: JS → pywebview → `DirectBridge` → `MDService` (in-process)
+- **api**: JS → pywebview → `APIClient` → FastAPI → `MDService` (HTTP)
+- **auto**: tries direct, falls back to api
 
 ### Extending the Framework
 
-To add a new potential: subclass `PotentialEnergy`, implement `compute_energy(positions, box, atom_types) -> float` and `get_name() -> str`. Forces are derived automatically — never implement force computation manually.
+To add a new potential: subclass `PotentialEnergy`, implement `compute_energy()`. Forces are derived automatically.
 
-To add a new minimizer: subclass `Minimizer`, implement `_step(system, force_calculator, forces, energy) -> (new_forces, new_energy)` and `get_name() -> str`. Optionally override `_initialize()` for setup. The `minimize()` template method handles the convergence loop.
+To add a new API endpoint: add schema in `core/schemas.py`, method in `core/service.py`, route in `api/routes.py`, methods in `gui/bridge.py` and `gui/api_client.py`.
 
-To add a new integrator/thermostat/boundary condition: subclass the corresponding ABC and implement its abstract methods. See `docs/开发者指南.md` for full examples.
+See `docs/architecture.md` for detailed call flow diagrams and extension procedures.
 
 ### Key Files
 
+- `src/pymd/core/service.py` — backend service layer (all business logic)
+- `src/pymd/core/schemas.py` — shared payload schemas
+- `src/pymd/api/routes.py` — FastAPI REST endpoints
+- `src/pymd/gui/bridge.py` — direct-call GUI bridge
+- `src/pymd/gui/runtime.py` — compute mode dispatcher
 - `src/pymd/simulator/simulator.py` — main simulation loop
 - `src/pymd/force/force_calculator.py` — force computation via autodiff
-- `src/pymd/force/autodiff_backend.py` — all autodiff backend implementations
-- `src/pymd/builder/system_builder.py` — fluent system construction API
 - `src/pymd/builder/config_loader.py` — YAML configuration loading
-- `src/pymd/minimizer/minimizer.py` — Minimizer ABC + MinimizationResult
-- `src/pymd/core/system.py` — central System container
-- `src/pymd/gui/main.py` — GUI entry point
-- `src/pymd/gui/api.py` — GUI backend API
-- `MD_SIMULATOR_DESIGN.md` — comprehensive design document
-- `docs/开发者指南.md` — developer guide with extension examples (Chinese)
-- `examples/lj_argon.yaml` — reference YAML configuration
+- `docs/architecture.md` — architecture documentation
+- `docs/开发者指南.md` — developer guide (Chinese)
