@@ -3,11 +3,23 @@ API routes — thin adapters that delegate to :class:`MDService`.
 """
 from __future__ import annotations
 
-from typing import Any, Dict
-
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
 
+from pymd.api.models import (
+    BuildRequest,
+    BuildResponse,
+    EnergyDataPayload,
+    EnergyResponse,
+    MinimizationRequest,
+    MinimizationResponse,
+    MinimizationResultPayload,
+    SimulationRequest,
+    SimulationStartResponse,
+    SimulationUpdateResponse,
+    StopResponse,
+    SystemSummaryResponse,
+    XyzResponse,
+)
 from pymd.core.schemas import BuildConfig, MinimizationParams, SimulationParams
 from pymd.core.service import MDService
 
@@ -22,39 +34,11 @@ def get_service() -> MDService:
 
 
 # ------------------------------------------------------------------ #
-#  Pydantic request / response models
-# ------------------------------------------------------------------ #
-
-
-class BuildRequest(BaseModel):
-    units: str = "LJ"
-    boundary: Dict[str, Any] = Field(default_factory=lambda: {"type": "periodic"})
-    system: Dict[str, Any] = Field(default_factory=dict)
-    potential: Dict[str, Any] = Field(default_factory=lambda: {"type": "lj"})
-    backend: str = "numerical"
-    integrator: Dict[str, Any] = Field(default_factory=lambda: {"dt": 0.005})
-    thermostat: Dict[str, Any] = Field(default_factory=lambda: {"type": "nve"})
-
-
-class SimulationRequest(BaseModel):
-    num_steps: int = 1000
-    viz_interval: int = 50
-    init_temp: float = 1.0
-
-
-class MinimizationRequest(BaseModel):
-    algorithm: str = "conjugate_gradient"
-    force_tol: float = 1e-4
-    energy_tol: float = 1e-8
-    max_steps: int = 10000
-
-
-# ------------------------------------------------------------------ #
 #  Endpoints
 # ------------------------------------------------------------------ #
 
 
-@router.post("/build")
+@router.post("/build", response_model=BuildResponse)
 def build_system(req: BuildRequest):
     try:
         cfg = BuildConfig(
@@ -67,21 +51,23 @@ def build_system(req: BuildRequest):
             thermostat=req.thermostat,
         )
         summary = get_service().build_system(cfg)
-        return {"ok": True, "summary": summary.to_dict()}
+        return BuildResponse(
+            summary=SystemSummaryResponse(**summary.to_dict()),
+        )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/xyz")
+@router.get("/xyz", response_model=XyzResponse)
 def get_xyz():
     try:
         xyz = get_service().get_xyz()
-        return {"ok": True, "xyz": xyz}
+        return XyzResponse(xyz=xyz)
     except RuntimeError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/simulation/start")
+@router.post("/simulation/start", response_model=SimulationStartResponse)
 def start_simulation(req: SimulationRequest):
     svc = get_service()
     try:
@@ -91,34 +77,37 @@ def start_simulation(req: SimulationRequest):
             init_temp=req.init_temp,
         )
         svc.prepare_simulation(params)
-        # Run synchronously (HTTP request blocks until done).
-        updates = []
+        updates: list[SimulationUpdateResponse] = []
         svc.run_steps(
             num_steps=params.num_steps,
             viz_interval=params.viz_interval,
-            on_update=lambda u: updates.append(u.to_dict()),
+            on_update=lambda u: updates.append(
+                SimulationUpdateResponse(**u.to_dict())
+            ),
         )
-        return {"ok": True, "updates": updates}
+        return SimulationStartResponse(updates=updates)
     except RuntimeError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/simulation/stop")
+@router.post("/simulation/stop", response_model=StopResponse)
 def stop_simulation():
     get_service().stop()
-    return {"ok": True}
+    return StopResponse()
 
 
-@router.get("/energy")
+@router.get("/energy", response_model=EnergyResponse)
 def get_energy_data():
     try:
         data = get_service().get_energy_data()
-        return {"ok": True, "data": data.to_dict()}
+        return EnergyResponse(
+            data=EnergyDataPayload(**data.to_dict()),
+        )
     except RuntimeError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.post("/minimize")
+@router.post("/minimize", response_model=MinimizationResponse)
 def run_minimization(req: MinimizationRequest):
     try:
         params = MinimizationParams(
@@ -128,6 +117,8 @@ def run_minimization(req: MinimizationRequest):
             max_steps=req.max_steps,
         )
         result = get_service().run_minimization(params)
-        return {"ok": True, "result": result.to_dict()}
+        return MinimizationResponse(
+            result=MinimizationResultPayload(**result.to_dict()),
+        )
     except (RuntimeError, ValueError) as e:
         raise HTTPException(status_code=400, detail=str(e))
