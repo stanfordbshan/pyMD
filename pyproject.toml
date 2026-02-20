@@ -13,7 +13,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest"]
+test = ["pytest", "httpx"]
+api = ["fastapi", "uvicorn[standard]"]
 jax = ["jax", "jaxlib"]
 torch = ["torch"]
 autograd = ["autograd"]
