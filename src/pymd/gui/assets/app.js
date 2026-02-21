@@ -2,6 +2,45 @@
    pyMD Desktop App - Frontend Logic
    ============================================================= */
 
+// ---- Compute Mode Dispatch ----
+const _params = new URLSearchParams(window.location.search);
+const COMPUTE_MODE = _params.get('compute_mode') || 'auto';
+const API_BASE_URL = _params.get('api_base_url') || '';
+
+async function callDirect(method, ...args) {
+  const raw = await window.pywebview.api[method](...args);
+  return JSON.parse(raw);
+}
+
+async function callApi(endpoint, httpMethod, body) {
+  const opts = { method: httpMethod, headers: { 'Content-Type': 'application/json' } };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const resp = await fetch(API_BASE_URL + endpoint, opts);
+  if (!resp.ok) {
+    const e = await resp.json().catch(() => ({ detail: 'API error' }));
+    throw new Error(e.detail || 'API error');
+  }
+  return resp.json();
+}
+
+/**
+ * Dispatch a call based on the current compute mode.
+ *
+ * @param {Function} directFn  — async function that calls pywebview.api.*
+ * @param {Function} apiFn     — async function that calls fetch()
+ * @returns {Promise<*>}
+ */
+async function dispatch(directFn, apiFn) {
+  if (COMPUTE_MODE === 'direct') return directFn();
+  if (COMPUTE_MODE === 'api') return apiFn();
+  // auto: try direct first, fall back to API
+  try {
+    return await directFn();
+  } catch (_directErr) {
+    return apiFn();
+  }
+}
+
 // ---- Global State ----
 let viewer = null;
 let systemBuilt = false;
@@ -134,6 +173,7 @@ document.getElementById("cfg-thermostat-type").addEventListener("change", (e) =>
 });
 
 // ---- Load YAML ----
+// load_yaml always uses pywebview (native file dialog) — direct-only.
 document.getElementById("btn-load-yaml").addEventListener("click", async () => {
   setStatus("Loading YAML...", "running");
   try {
@@ -245,8 +285,18 @@ document.getElementById("btn-build-system").addEventListener("click", async () =
   setStatus("Building system...", "running");
   const config = gatherConfig();
   try {
-    const raw = await pywebview.api.build_system(JSON.stringify(config));
-    const result = JSON.parse(raw);
+    const result = await dispatch(
+      // direct path
+      async () => {
+        const raw = await pywebview.api.build_system(JSON.stringify(config));
+        return JSON.parse(raw);
+      },
+      // API path
+      async () => {
+        const resp = await callApi('/api/build', 'POST', config);
+        return { ok: true, summary: resp.summary, xyz: resp.summary.xyz };
+      },
+    );
     if (result.error) {
       setStatus("Build failed: " + result.error, "error");
       return;
@@ -376,13 +426,29 @@ document.getElementById("btn-start-sim").addEventListener("click", async () => {
   setStatus("Simulation running...", "running");
 
   try {
-    const raw = await pywebview.api.start_simulation(steps, vizInterval, initTemp);
-    const result = JSON.parse(raw);
-    if (result.error) {
-      setStatus("Error: " + result.error, "error");
-      document.getElementById("btn-start-sim").disabled = false;
-      document.getElementById("btn-stop-sim").disabled = true;
-    }
+    await dispatch(
+      // direct path: bridge pushes updates via evaluate_js callbacks
+      async () => {
+        const raw = await pywebview.api.start_simulation(steps, vizInterval, initTemp);
+        const result = JSON.parse(raw);
+        if (result.error) throw new Error(result.error);
+        return result;
+      },
+      // API path: receives all updates at once, replays them
+      async () => {
+        const resp = await callApi('/api/simulation/start', 'POST', {
+          num_steps: steps,
+          viz_interval: vizInterval,
+          init_temp: initTemp,
+        });
+        // Replay updates sequentially into the UI
+        for (const u of (resp.updates || [])) {
+          onSimulationUpdate(u, u.xyz);
+        }
+        onSimulationDone();
+        return resp;
+      },
+    );
   } catch (err) {
     setStatus("Error: " + err.message, "error");
     document.getElementById("btn-start-sim").disabled = false;
@@ -392,14 +458,21 @@ document.getElementById("btn-start-sim").addEventListener("click", async () => {
 
 document.getElementById("btn-stop-sim").addEventListener("click", async () => {
   try {
-    await pywebview.api.stop_simulation();
+    await dispatch(
+      async () => {
+        await pywebview.api.stop_simulation();
+      },
+      async () => {
+        await callApi('/api/simulation/stop', 'POST', {});
+      },
+    );
     setStatus("Stopping...", "running");
   } catch (err) {
     console.error(err);
   }
 });
 
-// Called from Python via evaluate_js
+// Called from Python via evaluate_js (direct mode)
 function onSimulationUpdate(data, xyzString) {
   // Update readout
   document.getElementById("ro-step").textContent = data.step;
@@ -472,19 +545,31 @@ document.getElementById("btn-minimize").addEventListener("click", async () => {
   setStatus("Minimizing...", "running");
 
   try {
-    const raw = await pywebview.api.run_minimization(algo, JSON.stringify(params));
-    const result = JSON.parse(raw);
-    if (result.error) {
-      setStatus("Error: " + result.error, "error");
-      document.getElementById("btn-minimize").disabled = false;
-    }
+    await dispatch(
+      // direct path: bridge pushes result via evaluate_js callback
+      async () => {
+        const raw = await pywebview.api.run_minimization(algo, JSON.stringify(params));
+        const result = JSON.parse(raw);
+        if (result.error) throw new Error(result.error);
+        return result;
+      },
+      // API path: receives result directly
+      async () => {
+        const resp = await callApi('/api/minimize', 'POST', {
+          algorithm: algo,
+          ...params,
+        });
+        onMinimizationDone(resp.result, resp.result.xyz);
+        return resp;
+      },
+    );
   } catch (err) {
     setStatus("Error: " + err.message, "error");
     document.getElementById("btn-minimize").disabled = false;
   }
 });
 
-// Called from Python via evaluate_js
+// Called from Python via evaluate_js (direct mode)
 function onMinimizationDone(result, xyzString) {
   document.getElementById("btn-minimize").disabled = false;
   setStatus("Minimization complete", "idle");
