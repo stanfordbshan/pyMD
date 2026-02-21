@@ -25,14 +25,14 @@ def build_menu_bar(window: webview.Window) -> list[Menu]:
     file_menu = Menu(
         "File",
         [
-            MenuAction("Load YAML\tCtrl+O", lambda: window.evaluate_js(
+            MenuAction("Load YAML          (Ctrl+O)", lambda: window.evaluate_js(
                 "document.getElementById('btn-load-yaml').click()"
             )),
-            MenuAction("Build System\tCtrl+B", lambda: window.evaluate_js(
+            MenuAction("Build System       (Ctrl+B)", lambda: window.evaluate_js(
                 "document.getElementById('btn-build-system').click()"
             )),
             MenuSeparator(),
-            MenuAction("Exit\tAlt+F4", lambda: window.destroy()),
+            MenuAction("Exit               (Alt+F4)", lambda: window.destroy()),
         ],
     )
 
@@ -40,14 +40,14 @@ def build_menu_bar(window: webview.Window) -> list[Menu]:
     simulation_menu = Menu(
         "Simulation",
         [
-            MenuAction("Start Simulation\tCtrl+R", lambda: window.evaluate_js(
+            MenuAction("Start Simulation   (Ctrl+R)", lambda: window.evaluate_js(
                 "document.getElementById('btn-start-sim').click()"
             )),
-            MenuAction("Stop Simulation\tCtrl+.", lambda: window.evaluate_js(
+            MenuAction("Stop Simulation    (Ctrl+.)", lambda: window.evaluate_js(
                 "document.getElementById('btn-stop-sim').click()"
             )),
             MenuSeparator(),
-            MenuAction("Run Minimization\tCtrl+M", lambda: window.evaluate_js(
+            MenuAction("Run Minimization   (Ctrl+M)", lambda: window.evaluate_js(
                 "document.getElementById('btn-minimize').click()"
             )),
         ],
@@ -80,7 +80,8 @@ def build_menu_bar(window: webview.Window) -> list[Menu]:
         "'pyMD v" + __version__ + "\\n\\n"
         "Molecular Dynamics Simulator with Autodiff Forces.\\n"
         "Users write energy functions E(positions);\\n"
-        "forces F = -∇E are computed automatically.')"
+        "forces F = -\\u2207E are computed automatically.\\n\\n"
+        "Author: Prof Bin Shan')"
     )
 
     help_menu = Menu(
