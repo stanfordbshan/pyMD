@@ -3,9 +3,16 @@
    ============================================================= */
 
 // ---- Compute Mode Dispatch ----
-const _params = new URLSearchParams(window.location.search);
-const COMPUTE_MODE = _params.get('compute_mode') || 'auto';
-const API_BASE_URL = _params.get('api_base_url') || '';
+// Config is injected by Python via evaluate_js (window.__PYMD_*).
+// Falls back to query params for standalone browser testing, then defaults.
+function _getConfig(key, fallback) {
+  const injected = window['__PYMD_' + key];
+  if (injected !== undefined && injected !== '') return injected;
+  const params = new URLSearchParams(window.location.search);
+  return params.get(key.toLowerCase()) || fallback;
+}
+const COMPUTE_MODE = _getConfig('COMPUTE_MODE', 'direct');
+const API_BASE_URL = _getConfig('API_BASE_URL', '');
 
 async function callDirect(method, ...args) {
   const raw = await window.pywebview.api[method](...args);
@@ -61,20 +68,23 @@ document.querySelectorAll(".nav-item").forEach((item) => {
     const tab = item.dataset.tab;
     document.getElementById("tab-" + tab).classList.add("active");
 
-    // Initialize or refresh 3Dmol viewer when switching to visualization tab
+    // Initialize or refresh 3Dmol viewer when switching to visualization tab.
+    // A short timeout ensures the container has its final dimensions before
+    // 3Dmol measures the canvas — avoids garbled first render on Windows.
     if (tab === "visualization") {
-      // Small delay lets the browser finish layout before 3Dmol measures its container
-      requestAnimationFrame(() => {
+      setTimeout(() => {
         if (!viewer) {
           initViewer();
+        }
+        if (viewer) {
+          viewer.resize();
           if (pendingXyz) {
             loadXyzIntoViewer(pendingXyz);
+          } else {
+            viewer.render();
           }
-        } else {
-          viewer.resize();
-          viewer.render();
         }
-      });
+      }, 100);
     }
   });
 });

@@ -115,25 +115,6 @@ def _resolve_api_backend(
 
 
 # ------------------------------------------------------------------ #
-#  Frontend URL builder
-# ------------------------------------------------------------------ #
-
-
-def _build_frontend_url(
-    api_base_url: Optional[str],
-    compute_mode: str,
-) -> str:
-    """Build the file:// URL for index.html with query parameters."""
-    index_path = os.path.join(_ASSETS_DIR, "index.html")
-    # Use file URI
-    file_url = "file:///" + index_path.replace("\\", "/")
-    params = f"compute_mode={compute_mode}"
-    if api_base_url:
-        params += f"&api_base_url={api_base_url}"
-    return f"{file_url}?{params}"
-
-
-# ------------------------------------------------------------------ #
 #  CLI argument parser
 # ------------------------------------------------------------------ #
 
@@ -195,17 +176,27 @@ def launch_gui(
     )
 
     bridge = DirectBridge()
-    frontend_url = _build_frontend_url(resolved_url, compute_mode)
+    index_path = os.path.join(_ASSETS_DIR, "index.html")
 
     window = webview.create_window(
         "pymd - Molecular Dynamics Simulator",
-        url=frontend_url,
+        url=index_path,
         js_api=bridge,
         width=width,
         height=height,
         min_size=(900, 600),
     )
     bridge.set_window(window)
+
+    def _on_loaded():
+        """Inject compute-mode config into the frontend after page load."""
+        api_url_js = f"'{resolved_url}'" if resolved_url else "''"
+        window.evaluate_js(
+            f"window.__PYMD_COMPUTE_MODE = '{compute_mode}';"
+            f"window.__PYMD_API_BASE_URL = {api_url_js};"
+        )
+
+    window.events.loaded += _on_loaded
 
     try:
         webview.start(debug=debug)
