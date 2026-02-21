@@ -839,3 +839,26 @@ function setStatus(text, type) {
   bar.textContent = text;
   bar.className = "status-" + (type || "idle");
 }
+
+// ---- Keyboard Shortcuts ----
+document.addEventListener("keydown", (e) => {
+  if (!(e.ctrlKey || e.metaKey)) return;
+
+  const shortcuts = {
+    o: "btn-load-yaml",
+    b: "btn-build-system",
+    r: "btn-start-sim",
+    ".": "btn-stop-sim",
+    m: "btn-minimize",
+  };
+
+  const key = e.key.toLowerCase();
+  const targetId = shortcuts[key];
+  if (!targetId) return;
+
+  const btn = document.getElementById(targetId);
+  if (btn) {
+    e.preventDefault();
+    btn.click();
+  }
+});

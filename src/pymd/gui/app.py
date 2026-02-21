@@ -170,6 +170,7 @@ def launch_gui(
     import webview
 
     from pymd.gui.bridge import DirectBridge
+    from pymd.gui.menu import build_menu_bar
 
     embedded, resolved_url = _resolve_api_backend(
         compute_mode, api_url, api_host, api_port,
@@ -187,6 +188,7 @@ def launch_gui(
         min_size=(900, 600),
     )
     bridge.set_window(window)
+    menu_bar = build_menu_bar(window)
 
     def _on_loaded():
         """Inject compute-mode config into the frontend after page load."""
@@ -199,7 +201,7 @@ def launch_gui(
     window.events.loaded += _on_loaded
 
     try:
-        webview.start(debug=debug)
+        webview.start(debug=debug, menu=menu_bar)
     finally:
         _stop_embedded_api(embedded)
 
