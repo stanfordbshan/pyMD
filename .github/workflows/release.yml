@@ -1,0 +1,208 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: pyMD-Windows-x64.exe
+            pyinstaller_extra: --windowed
+          - os: macos-latest
+            artifact: pyMD-macOS-x64.zip
+            pyinstaller_extra: --windowed
+          - os: ubuntu-latest
+            artifact: pyMD-Linux-x64
+            pyinstaller_extra: ""
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Linux: install WebKitGTK and GObject introspection libs for pywebview
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgirepository1.0-dev \
+            gir1.2-webkit2-4.1 \
+            gobject-introspection \
+            libcairo2-dev \
+            pkg-config
+
+      - name: Install Python dependencies
+        run: |
+          pip install -e ".[gui,api]"
+          pip install pyinstaller
+
+      - name: Build with PyInstaller (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          pyinstaller \
+            --onefile \
+            ${{ matrix.pyinstaller_extra }} \
+            --name pyMD \
+            --add-data "src/pymd/gui/assets/:pymd/gui/assets/" \
+            --hidden-import pymd \
+            --hidden-import pymd \
+            --hidden-import pymd.core \
+            --hidden-import pymd.core.system \
+            --hidden-import pymd.core.state \
+            --hidden-import pymd.core.atom \
+            --hidden-import pymd.core.units \
+            --hidden-import pymd.core.constants \
+            --hidden-import pymd.core.element_registry \
+            --hidden-import pymd.core.service \
+            --hidden-import pymd.core.schemas \
+            --hidden-import pymd.application \
+            --hidden-import pymd.application.md_workflow \
+            --hidden-import pymd.potential \
+            --hidden-import pymd.potential.potential_energy \
+            --hidden-import pymd.potential.pairwise \
+            --hidden-import pymd.potential.many_body \
+            --hidden-import pymd.potential.composite_potential \
+            --hidden-import pymd.force \
+            --hidden-import pymd.force.force_calculator \
+            --hidden-import pymd.force.autodiff_backend \
+            --hidden-import pymd.boundary \
+            --hidden-import pymd.neighbor \
+            --hidden-import pymd.integrator \
+            --hidden-import pymd.minimizer \
+            --hidden-import pymd.thermostat \
+            --hidden-import pymd.observer \
+            --hidden-import pymd.builder \
+            --hidden-import pymd.builder.config_loader \
+            --hidden-import pymd.simulator \
+            --hidden-import pymd.api \
+            --hidden-import pymd.api.app \
+            --hidden-import pymd.api.routes \
+            --hidden-import pymd.api.models \
+            --hidden-import pymd.gui \
+            --hidden-import pymd.gui.bridge \
+            --hidden-import webview \
+            --hidden-import fastapi \
+            --hidden-import uvicorn \
+            --hidden-import starlette \
+            --hidden-import anyio \
+            --hidden-import httptools \
+            --hidden-import yaml \
+            --hidden-import pyyaml \
+            src/pymd/gui/__main__.py
+
+      - name: Build with PyInstaller (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          pyinstaller `
+            --onefile `
+            --windowed `
+            --name pyMD `
+            --add-data "src/pymd/gui/assets/;pymd/gui/assets/" `
+            --hidden-import pymd `
+            --hidden-import pymd.core `
+            --hidden-import pymd.core.system `
+            --hidden-import pymd.core.state `
+            --hidden-import pymd.core.atom `
+            --hidden-import pymd.core.units `
+            --hidden-import pymd.core.constants `
+            --hidden-import pymd.core.element_registry `
+            --hidden-import pymd.core.service `
+            --hidden-import pymd.core.schemas `
+            --hidden-import pymd.application `
+            --hidden-import pymd.application.md_workflow `
+            --hidden-import pymd.potential `
+            --hidden-import pymd.potential.potential_energy `
+            --hidden-import pymd.potential.pairwise `
+            --hidden-import pymd.potential.many_body `
+            --hidden-import pymd.potential.composite_potential `
+            --hidden-import pymd.force `
+            --hidden-import pymd.force.force_calculator `
+            --hidden-import pymd.force.autodiff_backend `
+            --hidden-import pymd.boundary `
+            --hidden-import pymd.neighbor `
+            --hidden-import pymd.integrator `
+            --hidden-import pymd.minimizer `
+            --hidden-import pymd.thermostat `
+            --hidden-import pymd.observer `
+            --hidden-import pymd.builder `
+            --hidden-import pymd.builder.config_loader `
+            --hidden-import pymd.simulator `
+            --hidden-import pymd.api `
+            --hidden-import pymd.api.app `
+            --hidden-import pymd.api.routes `
+            --hidden-import pymd.api.models `
+            --hidden-import pymd.gui `
+            --hidden-import pymd.gui.bridge `
+            --hidden-import webview `
+            --hidden-import fastapi `
+            --hidden-import uvicorn `
+            --hidden-import starlette `
+            --hidden-import anyio `
+            --hidden-import httptools `
+            --hidden-import yaml `
+            --hidden-import pyyaml `
+            src/pymd/gui/__main__.py
+
+      # macOS: zip the .app bundle
+      - name: Package macOS app
+        if: runner.os == 'macOS'
+        run: |
+          cd dist
+          zip -r pyMD-macOS-x64.zip pyMD.app || zip -r pyMD-macOS-x64.zip pyMD
+
+      # Rename Linux binary
+      - name: Rename artifact (Linux)
+        if: runner.os == 'Linux'
+        run: mv dist/pyMD dist/pyMD-Linux-x64
+
+      # Rename Windows binary
+      - name: Rename artifact (Windows)
+        if: runner.os == 'Windows'
+        run: Rename-Item dist/pyMD.exe pyMD-Windows-x64.exe
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -R artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          body: |
+            ## Platform Notes
+            - **Windows**: Requires Windows 10/11 with Edge WebView2 (pre-installed).
+            - **macOS**: Extract the zip and move `pyMD.app` to Applications.
+            - **Linux**: Requires WebKitGTK 4.1 at runtime (`sudo apt install libwebkit2gtk-4.1-0`).
+          files: |
+            artifacts/pyMD-Windows-x64.exe
+            artifacts/pyMD-macOS-x64.zip
+            artifacts/pyMD-Linux-x64
