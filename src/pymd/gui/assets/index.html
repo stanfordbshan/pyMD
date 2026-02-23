@@ -22,6 +22,9 @@
         <li class="nav-item" data-tab="visualization">
           <span class="nav-icon">&#9883;</span> Visualization
         </li>
+        <li class="nav-item" data-tab="potential">
+          <span class="nav-icon">&#8987;</span> Potential
+        </li>
         <li class="nav-item" data-tab="simulation">
           <span class="nav-icon">&#9654;</span> Simulation
         </li>
@@ -171,6 +174,99 @@
         </div>
         <div id="viewer-container">
           <div id="mol-viewer"></div>
+        </div>
+      </section>
+
+      <!-- ==================== POTENTIAL EXPLORER TAB ==================== -->
+      <section id="tab-potential" class="tab-panel tab-potential">
+        <!-- Toolbar -->
+        <div class="pe-toolbar">
+          <h2>Potential Explorer</h2>
+          <label class="toolbar-label">Type
+            <select id="pe-type">
+              <option value="lj" selected>Lennard-Jones</option>
+              <option value="morse">Morse</option>
+            </select>
+          </label>
+          <label class="pe-checkbox"><input type="checkbox" id="pe-show-force"> Show Force F(r)</label>
+          <label class="pe-checkbox"><input type="checkbox" id="pe-annotations" checked> Annotations</label>
+        </div>
+
+        <div class="pe-layout">
+          <!-- Left: sliders -->
+          <div class="pe-sidebar">
+            <!-- LJ sliders -->
+            <fieldset id="pe-lj-fieldset" class="form-section pe-fieldset">
+              <legend>Lennard-Jones Parameters</legend>
+              <div class="pe-slider-row">
+                <label>epsilon</label>
+                <input type="range" id="pe-lj-epsilon" min="0.1" max="5.0" step="0.01" value="1.0">
+                <span class="pe-readout" id="pe-lj-epsilon-val">1.00</span>
+              </div>
+              <div class="pe-slider-row">
+                <label>sigma</label>
+                <input type="range" id="pe-lj-sigma" min="0.1" max="3.0" step="0.01" value="1.0">
+                <span class="pe-readout" id="pe-lj-sigma-val">1.00</span>
+              </div>
+              <div class="pe-slider-row">
+                <label>cutoff</label>
+                <input type="range" id="pe-lj-cutoff" min="1.0" max="8.0" step="0.1" value="2.5">
+                <span class="pe-readout" id="pe-lj-cutoff-val">2.50</span>
+              </div>
+            </fieldset>
+
+            <!-- Morse sliders -->
+            <fieldset id="pe-morse-fieldset" class="form-section pe-fieldset" style="display:none;">
+              <legend>Morse Parameters</legend>
+              <div class="pe-slider-row">
+                <label>D</label>
+                <input type="range" id="pe-morse-D" min="0.1" max="5.0" step="0.01" value="1.0">
+                <span class="pe-readout" id="pe-morse-D-val">1.00</span>
+              </div>
+              <div class="pe-slider-row">
+                <label>a</label>
+                <input type="range" id="pe-morse-a" min="0.1" max="5.0" step="0.01" value="1.0">
+                <span class="pe-readout" id="pe-morse-a-val">1.00</span>
+              </div>
+              <div class="pe-slider-row">
+                <label>r0</label>
+                <input type="range" id="pe-morse-r0" min="0.1" max="5.0" step="0.01" value="1.0">
+                <span class="pe-readout" id="pe-morse-r0-val">1.00</span>
+              </div>
+              <div class="pe-slider-row">
+                <label>cutoff</label>
+                <input type="range" id="pe-morse-cutoff" min="1.0" max="10.0" step="0.1" value="5.0">
+                <span class="pe-readout" id="pe-morse-cutoff-val">5.00</span>
+              </div>
+            </fieldset>
+
+            <!-- Info box -->
+            <div class="pe-info-box" id="pe-info-box">
+              <h4>Properties</h4>
+              <div id="pe-info-content">-</div>
+            </div>
+
+            <button id="pe-apply-setup" class="btn btn-primary">Apply to Setup</button>
+            <button id="pe-reset-yaml" class="btn btn-secondary" disabled>Reset to YAML</button>
+          </div>
+
+          <!-- Right: tabbed panel -->
+          <div class="pe-right-panel">
+            <div class="pe-subtab-bar">
+              <button class="pe-subtab active" data-subtab="chart">Chart</button>
+              <button class="pe-subtab" data-subtab="intro">Introduction</button>
+              <button class="pe-subtab" data-subtab="code">Code</button>
+            </div>
+            <div class="pe-subtab-content pe-subtab-chart active" id="pe-subtab-chart">
+              <canvas id="pe-chart" width="800" height="500"></canvas>
+            </div>
+            <div class="pe-subtab-content pe-subtab-intro" id="pe-subtab-intro">
+              <div class="pe-intro-content" id="pe-intro-content"></div>
+            </div>
+            <div class="pe-subtab-content pe-subtab-code" id="pe-subtab-code">
+              <pre class="pe-code-block"><code id="pe-code-content"></code></pre>
+            </div>
+          </div>
         </div>
       </section>
 

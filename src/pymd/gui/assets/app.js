@@ -2,6 +2,52 @@
    pyMD Desktop App - Frontend Logic
    ============================================================= */
 
+// ---- Compute Mode Dispatch ----
+// Config is injected by Python via evaluate_js (window.__PYMD_*).
+// Falls back to query params for standalone browser testing, then defaults.
+function _getConfig(key, fallback) {
+  const injected = window['__PYMD_' + key];
+  if (injected !== undefined && injected !== '') return injected;
+  const params = new URLSearchParams(window.location.search);
+  return params.get(key.toLowerCase()) || fallback;
+}
+const COMPUTE_MODE = _getConfig('COMPUTE_MODE', 'direct');
+const API_BASE_URL = _getConfig('API_BASE_URL', '');
+
+async function callDirect(method, ...args) {
+  const raw = await window.pywebview.api[method](...args);
+  return JSON.parse(raw);
+}
+
+async function callApi(endpoint, httpMethod, body) {
+  const opts = { method: httpMethod, headers: { 'Content-Type': 'application/json' } };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const resp = await fetch(API_BASE_URL + endpoint, opts);
+  if (!resp.ok) {
+    const e = await resp.json().catch(() => ({ detail: 'API error' }));
+    throw new Error(e.detail || 'API error');
+  }
+  return resp.json();
+}
+
+/**
+ * Dispatch a call based on the current compute mode.
+ *
+ * @param {Function} directFn  — async function that calls pywebview.api.*
+ * @param {Function} apiFn     — async function that calls fetch()
+ * @returns {Promise<*>}
+ */
+async function dispatch(directFn, apiFn) {
+  if (COMPUTE_MODE === 'direct') return directFn();
+  if (COMPUTE_MODE === 'api') return apiFn();
+  // auto: try direct first, fall back to API
+  try {
+    return await directFn();
+  } catch (_directErr) {
+    return apiFn();
+  }
+}
+
 // ---- Global State ----
 let viewer = null;
 let systemBuilt = false;
@@ -12,6 +58,7 @@ let lastMinResult = null;
 let loadedCoordinates = null; // Stores custom positions from YAML
 let pendingXyz = null; // XYZ string waiting for viewer to be visible
 let defaultView = null; // Saved default camera view for reset
+let lastYamlPotential = null; // Snapshot of potential params from YAML load
 
 // ---- Tab Switching ----
 document.querySelectorAll(".nav-item").forEach((item) => {
@@ -22,20 +69,31 @@ document.querySelectorAll(".nav-item").forEach((item) => {
     const tab = item.dataset.tab;
     document.getElementById("tab-" + tab).classList.add("active");
 
-    // Initialize or refresh 3Dmol viewer when switching to visualization tab
+    // Sync and redraw Potential Explorer when opening its tab
+    if (tab === "potential") {
+      peSyncFromSetup();
+      peYRange = null; // Recompute Y range from fresh setup values
+      peRedraw();
+      peUpdateEducational();
+    }
+
+    // Initialize or refresh 3Dmol viewer when switching to visualization tab.
+    // A short timeout ensures the container has its final dimensions before
+    // 3Dmol measures the canvas — avoids garbled first render on Windows.
     if (tab === "visualization") {
-      // Small delay lets the browser finish layout before 3Dmol measures its container
-      requestAnimationFrame(() => {
+      setTimeout(() => {
         if (!viewer) {
           initViewer();
+        }
+        if (viewer) {
+          viewer.resize();
           if (pendingXyz) {
             loadXyzIntoViewer(pendingXyz);
+          } else {
+            viewer.render();
           }
-        } else {
-          viewer.resize();
-          viewer.render();
         }
-      });
+      }, 100);
     }
   });
 });
@@ -134,6 +192,7 @@ document.getElementById("cfg-thermostat-type").addEventListener("change", (e) =>
 });
 
 // ---- Load YAML ----
+// load_yaml always uses pywebview (native file dialog) — direct-only.
 document.getElementById("btn-load-yaml").addEventListener("click", async () => {
   setStatus("Loading YAML...", "running");
   try {
@@ -221,6 +280,20 @@ function populateForm(config) {
     document.getElementById("cfg-morse-cutoff").value = pot.cutoff;
   }
 
+  // Snapshot potential state for "Reset to YAML" button
+  lastYamlPotential = {
+    type: document.getElementById("cfg-potential-type").value,
+    epsilon: document.getElementById("cfg-epsilon").value,
+    sigma: document.getElementById("cfg-sigma").value,
+    cutoff: document.getElementById("cfg-cutoff").value,
+    morseD: document.getElementById("cfg-morse-D").value,
+    morseA: document.getElementById("cfg-morse-a").value,
+    morseR0: document.getElementById("cfg-morse-r0").value,
+    morseCutoff: document.getElementById("cfg-morse-cutoff").value,
+  };
+  const resetBtn = document.getElementById("pe-reset-yaml");
+  if (resetBtn) resetBtn.disabled = false;
+
   // Integrator
   const intgr = config.integrator || {};
   if (intgr.dt) document.getElementById("cfg-dt").value = intgr.dt;
@@ -245,8 +318,18 @@ document.getElementById("btn-build-system").addEventListener("click", async () =
   setStatus("Building system...", "running");
   const config = gatherConfig();
   try {
-    const raw = await pywebview.api.build_system(JSON.stringify(config));
-    const result = JSON.parse(raw);
+    const result = await dispatch(
+      // direct path
+      async () => {
+        const raw = await pywebview.api.build_system(JSON.stringify(config));
+        return JSON.parse(raw);
+      },
+      // API path
+      async () => {
+        const resp = await callApi('/api/build', 'POST', config);
+        return { ok: true, summary: resp.summary, xyz: resp.summary.xyz };
+      },
+    );
     if (result.error) {
       setStatus("Build failed: " + result.error, "error");
       return;
@@ -376,13 +459,29 @@ document.getElementById("btn-start-sim").addEventListener("click", async () => {
   setStatus("Simulation running...", "running");
 
   try {
-    const raw = await pywebview.api.start_simulation(steps, vizInterval, initTemp);
-    const result = JSON.parse(raw);
-    if (result.error) {
-      setStatus("Error: " + result.error, "error");
-      document.getElementById("btn-start-sim").disabled = false;
-      document.getElementById("btn-stop-sim").disabled = true;
-    }
+    await dispatch(
+      // direct path: bridge pushes updates via evaluate_js callbacks
+      async () => {
+        const raw = await pywebview.api.start_simulation(steps, vizInterval, initTemp);
+        const result = JSON.parse(raw);
+        if (result.error) throw new Error(result.error);
+        return result;
+      },
+      // API path: receives all updates at once, replays them
+      async () => {
+        const resp = await callApi('/api/simulation/start', 'POST', {
+          num_steps: steps,
+          viz_interval: vizInterval,
+          init_temp: initTemp,
+        });
+        // Replay updates sequentially into the UI
+        for (const u of (resp.updates || [])) {
+          onSimulationUpdate(u, u.xyz);
+        }
+        onSimulationDone();
+        return resp;
+      },
+    );
   } catch (err) {
     setStatus("Error: " + err.message, "error");
     document.getElementById("btn-start-sim").disabled = false;
@@ -392,14 +491,21 @@ document.getElementById("btn-start-sim").addEventListener("click", async () => {
 
 document.getElementById("btn-stop-sim").addEventListener("click", async () => {
   try {
-    await pywebview.api.stop_simulation();
+    await dispatch(
+      async () => {
+        await pywebview.api.stop_simulation();
+      },
+      async () => {
+        await callApi('/api/simulation/stop', 'POST', {});
+      },
+    );
     setStatus("Stopping...", "running");
   } catch (err) {
     console.error(err);
   }
 });
 
-// Called from Python via evaluate_js
+// Called from Python via evaluate_js (direct mode)
 function onSimulationUpdate(data, xyzString) {
   // Update readout
   document.getElementById("ro-step").textContent = data.step;
@@ -472,19 +578,31 @@ document.getElementById("btn-minimize").addEventListener("click", async () => {
   setStatus("Minimizing...", "running");
 
   try {
-    const raw = await pywebview.api.run_minimization(algo, JSON.stringify(params));
-    const result = JSON.parse(raw);
-    if (result.error) {
-      setStatus("Error: " + result.error, "error");
-      document.getElementById("btn-minimize").disabled = false;
-    }
+    await dispatch(
+      // direct path: bridge pushes result via evaluate_js callback
+      async () => {
+        const raw = await pywebview.api.run_minimization(algo, JSON.stringify(params));
+        const result = JSON.parse(raw);
+        if (result.error) throw new Error(result.error);
+        return result;
+      },
+      // API path: receives result directly
+      async () => {
+        const resp = await callApi('/api/minimize', 'POST', {
+          algorithm: algo,
+          ...params,
+        });
+        onMinimizationDone(resp.result, resp.result.xyz);
+        return resp;
+      },
+    );
   } catch (err) {
     setStatus("Error: " + err.message, "error");
     document.getElementById("btn-minimize").disabled = false;
   }
 });
 
-// Called from Python via evaluate_js
+// Called from Python via evaluate_js (direct mode)
 function onMinimizationDone(result, xyzString) {
   document.getElementById("btn-minimize").disabled = false;
   setStatus("Minimization complete", "idle");
@@ -744,3 +862,675 @@ function setStatus(text, type) {
   bar.textContent = text;
   bar.className = "status-" + (type || "idle");
 }
+
+// ---- Keyboard Shortcuts ----
+document.addEventListener("keydown", (e) => {
+  if (!(e.ctrlKey || e.metaKey)) return;
+
+  const shortcuts = {
+    o: "btn-load-yaml",
+    b: "btn-build-system",
+    r: "btn-start-sim",
+    ".": "btn-stop-sim",
+    m: "btn-minimize",
+  };
+
+  const key = e.key.toLowerCase();
+  const targetId = shortcuts[key];
+  if (!targetId) return;
+
+  const btn = document.getElementById(targetId);
+  if (btn) {
+    e.preventDefault();
+    btn.click();
+  }
+});
+
+// =====================================================================
+//  Potential Explorer
+// =====================================================================
+
+let peYRange = null; // Fixed Y-axis range; reset on type change
+
+// -- Sync map: PE slider id → Setup tab input id --
+const PE_SYNC_MAP = {
+  "pe-lj-epsilon": "cfg-epsilon",
+  "pe-lj-sigma": "cfg-sigma",
+  "pe-lj-cutoff": "cfg-cutoff",
+  "pe-morse-D": "cfg-morse-D",
+  "pe-morse-a": "cfg-morse-a",
+  "pe-morse-r0": "cfg-morse-r0",
+  "pe-morse-cutoff": "cfg-morse-cutoff",
+};
+
+// -- Math functions (matching Python source) --
+function ljEnergy(r, eps, sig) {
+  const s = sig / r;
+  const s6 = s * s * s * s * s * s;
+  return 4 * eps * (s6 * s6 - s6);
+}
+
+function ljForce(r, eps, sig) {
+  const s = sig / r;
+  const s6 = s * s * s * s * s * s;
+  return 24 * eps / r * (2 * s6 * s6 - s6);
+}
+
+function morseEnergy(r, D, a, r0) {
+  const ex = Math.exp(-a * (r - r0));
+  return D * (1 - ex) * (1 - ex);
+}
+
+function morseForce(r, D, a, r0) {
+  const ex = Math.exp(-a * (r - r0));
+  return 2 * D * a * ex * (1 - ex);
+}
+
+// -- Type selector: toggle fieldsets --
+document.getElementById("pe-type").addEventListener("change", (e) => {
+  const isLJ = e.target.value === "lj";
+  document.getElementById("pe-lj-fieldset").style.display = isLJ ? "block" : "none";
+  document.getElementById("pe-morse-fieldset").style.display = isLJ ? "none" : "block";
+  peYRange = null; // Reset Y-axis range on type change
+  peRedraw();
+  peUpdateEducational();
+});
+
+// -- Slider input handlers (no auto-sync to Setup; use Apply button) --
+Object.keys(PE_SYNC_MAP).forEach((sliderId) => {
+  const slider = document.getElementById(sliderId);
+  if (!slider) return;
+  slider.addEventListener("input", () => {
+    document.getElementById(sliderId + "-val").textContent =
+      parseFloat(slider.value).toFixed(2);
+    peRedraw();
+  });
+});
+
+// -- Checkbox handlers --
+document.getElementById("pe-show-force").addEventListener("change", peRedraw);
+document.getElementById("pe-annotations").addEventListener("change", peRedraw);
+
+// -- Sync from Setup tab → sliders --
+function peSyncFromSetup() {
+  Object.keys(PE_SYNC_MAP).forEach((sliderId) => {
+    const cfgInput = document.getElementById(PE_SYNC_MAP[sliderId]);
+    const slider = document.getElementById(sliderId);
+    if (!cfgInput || !slider) return;
+    const v = parseFloat(cfgInput.value);
+    if (!isNaN(v)) {
+      // Clamp to slider range
+      const clamped = Math.min(Math.max(v, parseFloat(slider.min)), parseFloat(slider.max));
+      slider.value = clamped;
+      document.getElementById(sliderId + "-val").textContent = clamped.toFixed(2);
+    }
+  });
+}
+
+// -- Reset to YAML --
+document.getElementById("pe-reset-yaml").addEventListener("click", () => {
+  if (!lastYamlPotential) return;
+  // Restore Setup tab inputs
+  document.getElementById("cfg-potential-type").value = lastYamlPotential.type;
+  document.getElementById("cfg-potential-type").dispatchEvent(new Event("change"));
+  document.getElementById("cfg-epsilon").value = lastYamlPotential.epsilon;
+  document.getElementById("cfg-sigma").value = lastYamlPotential.sigma;
+  document.getElementById("cfg-cutoff").value = lastYamlPotential.cutoff;
+  document.getElementById("cfg-morse-D").value = lastYamlPotential.morseD;
+  document.getElementById("cfg-morse-a").value = lastYamlPotential.morseA;
+  document.getElementById("cfg-morse-r0").value = lastYamlPotential.morseR0;
+  document.getElementById("cfg-morse-cutoff").value = lastYamlPotential.morseCutoff;
+  // Update PE type selector to match
+  document.getElementById("pe-type").value = lastYamlPotential.type;
+  document.getElementById("pe-type").dispatchEvent(new Event("change"));
+  // Sync sliders from restored Setup values
+  peSyncFromSetup();
+  peYRange = null; // Recompute Y range from YAML values
+  peRedraw();
+});
+
+// -- Redraw chart --
+function peRedraw() {
+  const type = document.getElementById("pe-type").value;
+  const showForce = document.getElementById("pe-show-force").checked;
+  const showAnnotations = document.getElementById("pe-annotations").checked;
+
+  let cutoff, rData, uData, fData, eqR, wellDepth, zeroCross;
+
+  if (type === "lj") {
+    const eps = parseFloat(document.getElementById("pe-lj-epsilon").value);
+    const sig = parseFloat(document.getElementById("pe-lj-sigma").value);
+    cutoff = parseFloat(document.getElementById("pe-lj-cutoff").value);
+    const rMin = sig * 0.85;
+    const rMax = cutoff;
+    rData = []; uData = []; fData = [];
+    for (let i = 0; i < 500; i++) {
+      const r = rMin + (rMax - rMin) * i / 499;
+      rData.push(r);
+      uData.push(ljEnergy(r, eps, sig));
+      fData.push(ljForce(r, eps, sig));
+    }
+    eqR = sig * Math.pow(2, 1 / 6);
+    wellDepth = -eps;
+    // Zero crossing: U(r)=0 at r = sigma for LJ
+    zeroCross = sig;
+  } else {
+    const D = parseFloat(document.getElementById("pe-morse-D").value);
+    const a = parseFloat(document.getElementById("pe-morse-a").value);
+    const r0 = parseFloat(document.getElementById("pe-morse-r0").value);
+    cutoff = parseFloat(document.getElementById("pe-morse-cutoff").value);
+    const rMin = Math.max(0.01, r0 - 3 / a);
+    const rMax = cutoff;
+    rData = []; uData = []; fData = [];
+    for (let i = 0; i < 500; i++) {
+      const r = rMin + (rMax - rMin) * i / 499;
+      rData.push(r);
+      uData.push(morseEnergy(r, D, a, r0));
+      fData.push(morseForce(r, D, a, r0));
+    }
+    eqR = r0;
+    wellDepth = 0; // Morse minimum is 0 at r=r0
+    zeroCross = null; // Morse doesn't cross zero (U >= 0)
+  }
+
+  // Update info box
+  const infoEl = document.getElementById("pe-info-content");
+  let infoHtml = `Equilibrium r: <strong>${eqR.toFixed(4)}</strong><br>`;
+  infoHtml += `Well depth: <strong>${wellDepth.toFixed(4)}</strong><br>`;
+  if (zeroCross != null) {
+    infoHtml += `Zero crossing: <strong>${zeroCross.toFixed(4)}</strong><br>`;
+  }
+  infoHtml += `Cutoff: <strong>${cutoff.toFixed(2)}</strong>`;
+  infoEl.innerHTML = infoHtml;
+
+  // Draw chart
+  drawPotentialChart("pe-chart", rData, uData, showForce ? fData : null, {
+    showAnnotations,
+    eqR,
+    wellDepth,
+    zeroCross,
+    cutoff,
+    type,
+  });
+}
+
+function drawPotentialChart(canvasId, rData, uData, fData, opts) {
+  const canvas = document.getElementById(canvasId);
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width;
+  const H = canvas.height;
+  const pad = { top: 24, right: 120, bottom: 44, left: 70 };
+  const plotW = W - pad.left - pad.right;
+  const plotH = H - pad.top - pad.bottom;
+
+  ctx.clearRect(0, 0, W, H);
+
+  if (rData.length < 2) return;
+
+  // Y range: use fixed range if available, otherwise compute and store
+  let yMin, yMax;
+  if (peYRange) {
+    yMin = peYRange[0];
+    yMax = peYRange[1];
+  } else {
+    yMin = Infinity; yMax = -Infinity;
+    uData.forEach((v) => { if (v < yMin) yMin = v; if (v > yMax) yMax = v; });
+    if (fData) {
+      fData.forEach((v) => { if (v < yMin) yMin = v; if (v > yMax) yMax = v; });
+    }
+    if (yMin === yMax) { yMin -= 1; yMax += 1; }
+    const yPad = (yMax - yMin) * 0.08;
+    yMin -= yPad; yMax += yPad;
+    // Ensure Y floor accommodates full slider range
+    if (opts.type === "lj") {
+      const epsMax = parseFloat(document.getElementById("pe-lj-epsilon").max) || 5;
+      yMin = Math.min(yMin, -epsMax * 1.1);
+    }
+    peYRange = [yMin, yMax];
+  }
+
+  const xMin = rData[0];
+  const xMax = rData[rData.length - 1];
+
+  function toX(v) { return pad.left + ((v - xMin) / (xMax - xMin || 1)) * plotW; }
+  function toY(v) { return pad.top + plotH - ((v - yMin) / (yMax - yMin || 1)) * plotH; }
+
+  // Vertical grid
+  ctx.strokeStyle = "#404060";
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 6; i++) {
+    const x = pad.left + (plotW * i) / 6;
+    ctx.beginPath(); ctx.moveTo(x, pad.top); ctx.lineTo(x, pad.top + plotH); ctx.stroke();
+  }
+  // Horizontal grid
+  for (let i = 0; i <= 5; i++) {
+    const y = pad.top + (plotH * i) / 5;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + plotW, y); ctx.stroke();
+  }
+
+  // Axes
+  ctx.strokeStyle = "#606080";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(pad.left, pad.top);
+  ctx.lineTo(pad.left, pad.top + plotH);
+  ctx.lineTo(pad.left + plotW, pad.top + plotH);
+  ctx.stroke();
+
+  // Dashed zero line (U=0)
+  if (yMin < 0 && yMax > 0) {
+    const y0 = toY(0);
+    ctx.save();
+    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = "#808090";
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pad.left, y0); ctx.lineTo(pad.left + plotW, y0); ctx.stroke();
+    ctx.restore();
+  }
+
+  // Axis labels
+  ctx.fillStyle = "#a0a0c0";
+  ctx.font = "11px sans-serif";
+  // X ticks
+  ctx.textAlign = "center";
+  for (let i = 0; i <= 6; i++) {
+    const val = xMin + ((xMax - xMin) * i) / 6;
+    ctx.fillText(val.toFixed(2), toX(val), pad.top + plotH + 16);
+  }
+  // Y ticks
+  ctx.textAlign = "right";
+  for (let i = 0; i <= 5; i++) {
+    const val = yMin + ((yMax - yMin) * i) / 5;
+    ctx.fillText(formatNum(val), pad.left - 6, toY(val) + 4);
+  }
+
+  // Axis titles
+  ctx.fillStyle = "#a0a0c0";
+  ctx.font = "12px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("r (distance)", pad.left + plotW / 2, H - 4);
+  ctx.save();
+  ctx.translate(14, pad.top + plotH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText("Energy / Force", 0, 0);
+  ctx.restore();
+
+  // Draw U(r) curve
+  ctx.strokeStyle = "#6c8cff";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < rData.length; i++) {
+    const x = toX(rData[i]), y = toY(uData[i]);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Draw F(r) curve (dashed red)
+  if (fData) {
+    ctx.save();
+    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = "#ff6b6b";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i < rData.length; i++) {
+      const x = toX(rData[i]), y = toY(fData[i]);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Annotations
+  if (opts.showAnnotations) {
+    // Equilibrium point (green dot + vertical guide)
+    if (opts.eqR >= xMin && opts.eqR <= xMax) {
+      const ex = toX(opts.eqR);
+      const ey = toY(opts.wellDepth);
+      ctx.save();
+      ctx.setLineDash([3, 3]);
+      ctx.strokeStyle = "#51cf66";
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(ex, pad.top); ctx.lineTo(ex, pad.top + plotH); ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = "#51cf66";
+      ctx.beginPath(); ctx.arc(ex, ey, 5, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // Well depth (yellow horizontal line)
+    if (opts.wellDepth >= yMin && opts.wellDepth <= yMax) {
+      const wy = toY(opts.wellDepth);
+      ctx.save();
+      ctx.setLineDash([4, 3]);
+      ctx.strokeStyle = "#ffd43b";
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(pad.left, wy); ctx.lineTo(pad.left + plotW, wy); ctx.stroke();
+      ctx.restore();
+    }
+
+    // Zero crossing (orange dot, LJ only)
+    if (opts.zeroCross != null && opts.zeroCross >= xMin && opts.zeroCross <= xMax) {
+      const zx = toX(opts.zeroCross);
+      const zy = toY(0);
+      ctx.fillStyle = "#ff922b";
+      ctx.beginPath(); ctx.arc(zx, zy, 5, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // Cutoff (red dashed vertical)
+    if (opts.cutoff >= xMin && opts.cutoff <= xMax) {
+      const cx = toX(opts.cutoff);
+      ctx.save();
+      ctx.setLineDash([5, 3]);
+      ctx.strokeStyle = "#ff6b6b";
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(cx, pad.top); ctx.lineTo(cx, pad.top + plotH); ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // Legend
+  let ly = pad.top + 12;
+  const lx = pad.left + plotW + 12;
+  // U(r)
+  ctx.fillStyle = "#6c8cff";
+  ctx.fillRect(lx, ly - 2, 16, 3);
+  ctx.fillStyle = "#e0e0f0";
+  ctx.textAlign = "left";
+  ctx.font = "11px sans-serif";
+  ctx.fillText("U(r)", lx + 20, ly + 3);
+  ly += 18;
+  // F(r)
+  if (fData) {
+    ctx.save();
+    ctx.setLineDash([4, 3]);
+    ctx.strokeStyle = "#ff6b6b";
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx + 16, ly); ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = "#e0e0f0";
+    ctx.fillText("F(r)", lx + 20, ly + 3);
+    ly += 18;
+  }
+  if (opts.showAnnotations) {
+    // Equilibrium
+    ctx.fillStyle = "#51cf66";
+    ctx.beginPath(); ctx.arc(lx + 8, ly, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#e0e0f0";
+    ctx.fillText("Equilibrium", lx + 20, ly + 3);
+    ly += 18;
+    // Well depth
+    ctx.fillStyle = "#ffd43b";
+    ctx.fillRect(lx, ly - 2, 16, 3);
+    ctx.fillStyle = "#e0e0f0";
+    ctx.fillText("Well depth", lx + 20, ly + 3);
+    ly += 18;
+    if (opts.zeroCross != null) {
+      ctx.fillStyle = "#ff922b";
+      ctx.beginPath(); ctx.arc(lx + 8, ly, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#e0e0f0";
+      ctx.fillText("Zero cross", lx + 20, ly + 3);
+      ly += 18;
+    }
+    // Cutoff
+    ctx.save();
+    ctx.setLineDash([4, 3]);
+    ctx.strokeStyle = "#ff6b6b";
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx + 16, ly); ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = "#e0e0f0";
+    ctx.fillText("Cutoff", lx + 20, ly + 3);
+  }
+}
+
+// =====================================================================
+//  Potential Explorer — Sub-tabs
+// =====================================================================
+
+document.querySelectorAll(".pe-subtab").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".pe-subtab").forEach((b) => b.classList.remove("active"));
+    document.querySelectorAll(".pe-subtab-content").forEach((p) => p.classList.remove("active"));
+    btn.classList.add("active");
+    const target = btn.dataset.subtab;
+    document.getElementById("pe-subtab-" + target).classList.add("active");
+  });
+});
+
+// =====================================================================
+//  Potential Explorer — Apply to Setup
+// =====================================================================
+
+document.getElementById("pe-apply-setup").addEventListener("click", () => {
+  const type = document.getElementById("pe-type").value;
+  // Sync potential type
+  document.getElementById("cfg-potential-type").value = type;
+  document.getElementById("cfg-potential-type").dispatchEvent(new Event("change"));
+  // Sync slider values → Setup tab inputs
+  Object.keys(PE_SYNC_MAP).forEach((sliderId) => {
+    const slider = document.getElementById(sliderId);
+    const cfgInput = document.getElementById(PE_SYNC_MAP[sliderId]);
+    if (slider && cfgInput) cfgInput.value = slider.value;
+  });
+  // Visual feedback
+  const btn = document.getElementById("pe-apply-setup");
+  const origText = btn.textContent;
+  btn.textContent = "Applied!";
+  btn.classList.add("applied");
+  setTimeout(() => {
+    btn.textContent = origText;
+    btn.classList.remove("applied");
+  }, 1500);
+});
+
+// =====================================================================
+//  Potential Explorer — Educational Content
+// =====================================================================
+
+const PE_INTRO = {
+  lj: `
+<h3>History</h3>
+<p>The Lennard-Jones potential was proposed by <strong>John Lennard-Jones</strong> in 1924 to model
+interactions between noble gas atoms. It became one of the most widely used pair potentials
+in molecular simulation due to its simplicity and reasonable accuracy for non-bonded interactions.</p>
+
+<h3>Formula</h3>
+<div class="pe-formula">U(r) = 4\u03B5 [(\u03C3/r)\u00B9\u00B2 \u2212 (\u03C3/r)\u2076]</div>
+<p>The potential consists of two terms:</p>
+<ul>
+  <li>The <strong>r\u207B\u00B9\u00B2 term</strong> (repulsive): dominates at short range, modeling Pauli repulsion
+  when electron clouds overlap.</li>
+  <li>The <strong>r\u207B\u2076 term</strong> (attractive): captures London dispersion forces (van der Waals),
+  arising from fluctuating induced dipoles.</li>
+</ul>
+
+<h3>Parameter Meanings</h3>
+<ul>
+  <li><strong>\u03B5 (epsilon)</strong> — Well depth: the strength of the interaction. Equals the
+  magnitude of the energy minimum. Larger \u03B5 means stronger attraction.</li>
+  <li><strong>\u03C3 (sigma)</strong> — Effective atomic diameter: the distance at which U(r) = 0.
+  Atoms closer than \u03C3 repel; atoms farther attract.</li>
+  <li><strong>r_min = 2\u00B9\u02B8\u2076 \u03C3 \u2248 1.122\u03C3</strong> — Equilibrium distance where
+  the energy is minimized at U = \u2212\u03B5.</li>
+</ul>
+
+<h3>Physical Basis</h3>
+<p>The attractive r\u207B\u2076 dependence has a rigorous quantum-mechanical origin in second-order
+perturbation theory (London dispersion). The repulsive r\u207B\u00B9\u00B2 exponent, however, is
+<em>empirical</em> — chosen for computational convenience (being the square of r\u207B\u2076) rather
+than derived from first principles. Exponential repulsion (Born-Mayer) is more physically accurate
+but more expensive.</p>
+
+<h3>Applicability</h3>
+<ul>
+  <li>Noble gases: Ar, Ne, Kr, Xe (excellent agreement with experimental data)</li>
+  <li>Simple fluids and Lennard-Jones fluids as model systems</li>
+  <li>Coarse-grained models of hydrophobic interactions</li>
+  <li>Non-bonded interactions in biomolecular force fields (combined with Coulomb)</li>
+</ul>
+
+<h3>Limitations</h3>
+<ul>
+  <li>Not suitable for covalent/metallic/ionic bonding</li>
+  <li>The r\u207B\u00B9\u00B2 repulsive wall is too steep compared to quantum-mechanical calculations</li>
+  <li>Single-species only (no cross-interactions without mixing rules)</li>
+  <li>Cannot model bond formation or breaking</li>
+  <li>Poor for anisotropic interactions (e.g., water, liquid crystals)</li>
+</ul>`,
+
+  morse: `
+<h3>History</h3>
+<p>The Morse potential was proposed by <strong>Philip M. Morse</strong> in 1929 as an analytically
+solvable model for the vibrations of diatomic molecules. Unlike the harmonic oscillator, it
+correctly captures bond dissociation and the anharmonicity of real molecular bonds.</p>
+
+<h3>Formula</h3>
+<div class="pe-formula">U(r) = D [1 \u2212 e\u207B\u1D43\u207D\u02B3\u207B\u02B3\u2080\u207E]\u00B2</div>
+<p>The potential describes an asymmetric well:</p>
+<ul>
+  <li>At <strong>r = r\u2080</strong>: U = 0 (equilibrium, minimum energy)</li>
+  <li>As <strong>r \u2192 \u221E</strong>: U \u2192 D (dissociation limit — bond breaks)</li>
+  <li>As <strong>r \u2192 0</strong>: U grows steeply (strong repulsion)</li>
+</ul>
+
+<h3>Parameter Meanings</h3>
+<ul>
+  <li><strong>D</strong> — Dissociation energy (well depth): the energy required to completely
+  separate two bonded atoms. Larger D means a stronger bond.</li>
+  <li><strong>a</strong> — Width parameter: controls the steepness of the potential well.
+  Larger a means a narrower, stiffer well (higher vibrational frequency).</li>
+  <li><strong>r\u2080</strong> — Equilibrium bond length: the distance at which the energy is
+  minimized (U = 0).</li>
+</ul>
+
+<h3>Physical Basis</h3>
+<p>The Morse potential is an <em>exact</em> solution of the Schr\u00F6dinger equation for a
+diatomic molecule — it yields analytical expressions for energy levels:
+E_n = \u0127\u03C9(n + \u00BD) \u2212 [\u0127\u03C9(n + \u00BD)]\u00B2 / 4D.
+The anharmonic correction (second term) naturally arises, predicting the convergence
+of vibrational levels near the dissociation limit.</p>
+
+<h3>Applicability</h3>
+<ul>
+  <li>Diatomic molecules (H\u2082, O\u2082, N\u2082, HCl, etc.)</li>
+  <li>Covalent bonds in polyatomic molecules</li>
+  <li>Metallic bonding in some embedded-atom model variants</li>
+  <li>Near-equilibrium vibrations of any bond (better than harmonic)</li>
+</ul>
+
+<h3>Limitations</h3>
+<ul>
+  <li>Does not capture long-range van der Waals (r\u207B\u2076) attraction</li>
+  <li>Not appropriate for non-bonded interactions between noble gas atoms</li>
+  <li>Overestimates repulsion at very short distances (r \u226A r\u2080)</li>
+  <li>Single bond only — does not describe three-body or angular effects</li>
+  <li>Parameters (D, a, r\u2080) must be fitted for each specific bond type</li>
+</ul>`,
+};
+
+function _highlightPython(code) {
+  // Escape HTML
+  let s = code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  // Order matters: comments first (greedy), then strings, then keywords
+  // Multi-line strings (triple-quoted)
+  s = s.replace(/("""[\s\S]*?"""|'''[\s\S]*?''')/g, '<span class="st">$1</span>');
+  // Single-line comments
+  s = s.replace(/(#[^\n]*)/g, '<span class="cm">$1</span>');
+  // Strings (double and single quoted, not already inside a span)
+  s = s.replace(/(?<!<span class="cm">.*?)("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/g, function(m) {
+    if (m.includes('class=')) return m;
+    return '<span class="st">' + m + '</span>';
+  });
+  // Decorators
+  s = s.replace(/(@\w+)/g, '<span class="dec">$1</span>');
+  // Keywords
+  const kws = '\\b(class|def|return|if|else|elif|for|in|range|import|from|as|not|and|or|is|None|True|False|raise|with|try|except|finally|yield|lambda|pass|break|continue|while|assert|del|global|nonlocal)\\b';
+  s = s.replace(new RegExp(kws, 'g'), '<span class="kw">$1</span>');
+  // self
+  s = s.replace(/\bself\b/g, '<span class="self">self</span>');
+  // Built-in functions/types
+  s = s.replace(/\b(len|float|int|str|print|isinstance|type|super|property|staticmethod|classmethod|abs|min|max|sum|map|filter|zip|enumerate|sorted|reversed|list|dict|set|tuple|ValueError|TypeError|Optional)\b/g, '<span class="nb">$1</span>');
+  // Numbers (integers and floats, not inside words)
+  s = s.replace(/(?<![.\w])(\d+\.?\d*(?:[eE][+-]?\d+)?)\b/g, '<span class="num">$1</span>');
+  // Operators
+  s = s.replace(/(\*\*|->|!=|==|&lt;=|&gt;=|&lt;|&gt;)/g, '<span class="op">$1</span>');
+  return s;
+}
+
+const PE_CODE = {
+  lj: `# Lennard-Jones 12-6 potential
+# U(r) = 4\u03B5[(\u03C3/r)\u00B9\u00B2 - (\u03C3/r)\u2076]
+# r_min = 2^(1/6) * \u03C3,  U_min = -\u03B5
+
+class LennardJonesPotential(PotentialEnergy):
+
+    def __init__(self, epsilon, sigma, cutoff):
+        self.epsilon = epsilon
+        self.sigma = sigma
+        self._cutoff = cutoff
+
+    def compute_pair_energy(self, r):
+        """U(r) for a single pair."""
+        sr = self.sigma / r
+        sr6 = sr ** 6
+        sr12 = sr6 ** 2
+        return 4.0 * self.epsilon * (sr12 - sr6)
+
+    def compute_pair_force(self, r):
+        """F(r) = -dU/dr = 24\u03B5/r [2(\u03C3/r)\u00B9\u00B2 - (\u03C3/r)\u2076]"""
+        sr = self.sigma / r
+        sr6 = sr ** 6
+        sr12 = sr6 ** 2
+        return 24.0 * self.epsilon / r * (2.0 * sr12 - sr6)
+
+    def compute_energy(self, positions, box, boundary_condition):
+        """Total energy — forces computed via autodiff!"""
+        energy = 0.0
+        n = len(positions)
+        for i in range(n):
+            for j in range(i + 1, n):
+                dr = positions[j] - positions[i]
+                dr = boundary_condition.apply_minimum_image(dr, box)
+                r = np.linalg.norm(dr)
+                if 0 < r < self._cutoff:
+                    energy += self.compute_pair_energy(r)
+        return energy`,
+
+  morse: `# Morse potential for molecular bonds
+# U(r) = D [1 - exp(-a(r - r\u2080))]\u00B2
+# U(r\u2080) = 0,  U(\u221E) = D
+
+class MorsePotential(PotentialEnergy):
+
+    def __init__(self, D, a, r0, cutoff):
+        self.D = D
+        self.a = a
+        self.r0 = r0
+        self._cutoff = cutoff
+
+    def compute_pair_energy(self, r):
+        """U(r) for a single pair."""
+        exp_term = np.exp(-self.a * (r - self.r0))
+        return self.D * (1 - exp_term) ** 2
+
+    def compute_energy(self, positions, box, boundary_condition):
+        """Total energy — forces computed via autodiff!"""
+        energy = 0.0
+        n = len(positions)
+        for i in range(n):
+            for j in range(i + 1, n):
+                dr = positions[j] - positions[i]
+                dr = boundary_condition.apply_minimum_image(dr, box)
+                r = np.linalg.norm(dr)
+                if 0 < r < self._cutoff:
+                    energy += self.compute_pair_energy(r)
+        return energy`,
+};
+
+function peUpdateEducational() {
+  const type = document.getElementById("pe-type").value;
+  document.getElementById("pe-intro-content").innerHTML = PE_INTRO[type] || "";
+  document.getElementById("pe-code-content").innerHTML = _highlightPython(PE_CODE[type] || "");
+}
+
+// Initialize educational content on first load
+peUpdateEducational();
