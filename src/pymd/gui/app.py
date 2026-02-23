@@ -24,7 +24,11 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Optional
 
-_GUI_DIR = os.path.dirname(os.path.abspath(__file__))
+if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+    # Running inside a PyInstaller bundle
+    _GUI_DIR = os.path.join(sys._MEIPASS, "pymd", "gui")
+else:
+    _GUI_DIR = os.path.dirname(os.path.abspath(__file__))
 _ASSETS_DIR = os.path.join(_GUI_DIR, "assets")
 
 

@@ -156,12 +156,18 @@ jobs:
             --hidden-import pyyaml `
             src/pymd/gui/__main__.py
 
-      # macOS: zip the .app bundle
+      # macOS: ad-hoc codesign so Gatekeeper allows the app to run, then zip
       - name: Package macOS app
         if: runner.os == 'macOS'
         run: |
           cd dist
-          zip -r pyMD-macOS-x64.zip pyMD.app || zip -r pyMD-macOS-x64.zip pyMD
+          if [ -d pyMD.app ]; then
+            codesign --force --deep -s - pyMD.app
+            zip -r pyMD-macOS-x64.zip pyMD.app
+          else
+            codesign --force -s - pyMD
+            zip -r pyMD-macOS-x64.zip pyMD
+          fi
 
       # Rename Linux binary
       - name: Rename artifact (Linux)
@@ -200,7 +206,7 @@ jobs:
           body: |
             ## Platform Notes
             - **Windows**: Requires Windows 10/11 with Edge WebView2 (pre-installed).
-            - **macOS**: Extract the zip and move `pyMD.app` to Applications.
+            - **macOS**: Extract the zip, then **right-click → Open → Open** (required for unsigned apps). Alternatively run `xattr -cr pyMD.app` in Terminal first.
             - **Linux**: Requires WebKitGTK 4.1 at runtime (`sudo apt install libwebkit2gtk-4.1-0`).
           files: |
             artifacts/pyMD-Windows-x64.exe
