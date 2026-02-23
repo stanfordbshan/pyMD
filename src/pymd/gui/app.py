@@ -214,9 +214,16 @@ def main(argv: Optional[list[str]] = None) -> int:
     """CLI entry point."""
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    # PyInstaller frozen bundles have no Python interpreter for subprocesses,
+    # so force direct mode (in-process bridge) instead of spawning an API server.
+    compute_mode = args.compute_mode
+    if getattr(sys, "frozen", False) and compute_mode != "direct":
+        compute_mode = "direct"
+
     try:
         launch_gui(
-            compute_mode=args.compute_mode,
+            compute_mode=compute_mode,
             api_url=args.api_url,
             api_host=args.api_host,
             api_port=args.api_port,
